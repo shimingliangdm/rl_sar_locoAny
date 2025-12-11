@@ -48,6 +48,8 @@ class Simulate {
 
   static constexpr int kMaxGeom = 20000;
 
+  std::vector<mjvGeom> geoms_;
+
   // create object and initialize the simulate ui
   Simulate(
       std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,

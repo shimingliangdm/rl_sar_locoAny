@@ -2475,6 +2475,12 @@ void Simulate::Render() {
     pending_.ui_update_ctrl = false;
   }
 
+  for (const auto& g : geoms_) 
+  {
+    this->scn.geoms[this->scn.ngeom] = g;
+    this->scn.ngeom++;
+  }
+
   // render scene
   mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
 

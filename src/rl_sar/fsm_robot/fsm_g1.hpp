@@ -139,6 +139,7 @@ RLFSMStateRLRoboMimicLocomotion(RL *rl) : RLFSMState(*rl, "RLFSMStateRLRoboMimic
         std::string robot_config_path = rl.robot_name + "/" + rl.config_name;
         try
         {
+            std::cout << "Trigger G1 RLFSMStateRLRoboMimicLocomotion InitRL" << std::endl;
             rl.InitRL(robot_config_path);
             rl.now_state = *fsm_state;
         }
@@ -195,6 +196,10 @@ RLFSMStateRLRoboMimicLocomotion(RL *rl) : RLFSMState(*rl, "RLFSMStateRLRoboMimic
         else if (rl.control.current_keyboard == Input::Keyboard::Num4 || rl.control.current_gamepad == Input::Gamepad::RB_DPadRight)
         {
             return "RLFSMStateRLWholeBodyTrackingGangnamStyle";
+        }
+        else if (rl.control.current_keyboard == Input::Keyboard::Num5)
+        {
+            return "RLFSMStateRLWholeBodyTrackingLafan";
         }
         return state_name_;
     }
@@ -369,6 +374,97 @@ public:
     }
 };
 
+class RLFSMStateRLWholeBodyTrackingLafan : public RLFSMState
+{
+public:
+RLFSMStateRLWholeBodyTrackingLafan(RL *rl) : RLFSMState(*rl, "RLFSMStateRLWholeBodyTrackingLafan") {}
+
+    void Enter() override
+    {
+        rl.episode_length_buf = 0;
+
+        // read params from yaml
+        rl.config_name = "whole_body_tracking/lafan_motion";
+        std::string robot_config_path = rl.robot_name + "/" + rl.config_name;
+        try
+        {
+            rl.video_mimic_motion_loader = std::make_unique<VideoMimicMotionLoader>();
+            rl.InitRL(robot_config_path);
+
+            // Initialize motion loader
+            std::string motion_file_path = std::string(POLICY_DIR) + "/" + robot_config_path + "/" + rl.params.Get<std::string>("motion_file");
+            float fps = 1.0f / (rl.params.Get<float>("dt") * rl.params.Get<int>("decimation"));
+            rl.motion_length = rl.video_mimic_motion_loader->GetDuration();
+
+            auto waist_sdk_indices = rl.params.Get<std::vector<int>>("waist_joint_indices");
+            std::vector<float> waist_angles = {
+                fsm_state->motor_state.q[rl.InverseJointMapping(waist_sdk_indices[0])],
+                fsm_state->motor_state.q[rl.InverseJointMapping(waist_sdk_indices[1])],
+                fsm_state->motor_state.q[rl.InverseJointMapping(waist_sdk_indices[2])]
+            };
+            rl.video_mimic_motion_loader->Reset(fsm_state->imu.quaternion, waist_angles);
+
+            std::cout << LOGGER::INFO << "Motion duration: " << rl.motion_length << "s" << std::endl;
+
+            rl.now_state = *fsm_state;
+        }
+        catch (const std::exception& e)
+        {
+            std::cout << LOGGER::ERROR << "InitRL() failed: " << e.what() << std::endl;
+            rl.rl_init_done = false;
+            rl.fsm.RequestStateChange("RLFSMStatePassive");
+        }
+    }
+
+    void Run() override
+    {
+        // position transition from last default_dof_pos to current default_dof_pos
+        // if (Interpolate(percent_transition, rl.now_state.motor_state.q, rl.params.Get<std::vector<float>>("default_dof_pos"), 0.5f, "Policy transition", true)) return;
+        if (!rl.rl_init_done) rl.rl_init_done = true;
+
+        // Calculate motion time and progress
+        float motion_time = rl.episode_length_buf * rl.params.Get<float>("dt") * rl.params.Get<int>("decimation");
+        motion_time = std::fmin(motion_time, rl.motion_length);
+        float percent = motion_time / rl.motion_length;
+        LOGGER::PrintProgress(percent, rl.config_name);
+
+        rl.video_mimic_motion_loader->Update(motion_time);
+
+        RLControl();
+
+        if (motion_time / rl.motion_length == 1)
+        {
+            rl.fsm.RequestStateChange("RLFSMStateRLRoboMimicLocomotion");
+        }
+    }
+
+    void Exit() override
+    {
+        rl.rl_init_done = false;
+    }
+
+    std::string CheckChange() override
+    {
+        if (rl.control.current_keyboard == Input::Keyboard::P || rl.control.current_gamepad == Input::Gamepad::LB_X)
+        {
+            return "RLFSMStatePassive";
+        }
+        else if (rl.control.current_keyboard == Input::Keyboard::Num9 || rl.control.current_gamepad == Input::Gamepad::B)
+        {
+            return "RLFSMStateGetDown";
+        }
+        else if (rl.control.current_keyboard == Input::Keyboard::Num0 || rl.control.current_gamepad == Input::Gamepad::A)
+        {
+            return "RLFSMStateGetUp";
+        }
+        else if (rl.control.current_keyboard == Input::Keyboard::Num1 || rl.control.current_gamepad == Input::Gamepad::RB_DPadUp)
+        {
+            return "RLFSMStateRLLocomotion";
+        }
+        return state_name_;
+    }
+};
+
 class RLFSMStateRLWholeBodyTrackingGangnamStyle : public RLFSMState
 {
 public:
@@ -484,6 +580,8 @@ public:
             return std::make_shared<g1_fsm::RLFSMStateRLWholeBodyTrackingDance102>(rl);
         else if (state_name == "RLFSMStateRLWholeBodyTrackingGangnamStyle")
             return std::make_shared<g1_fsm::RLFSMStateRLWholeBodyTrackingGangnamStyle>(rl);
+        else if (state_name == "RLFSMStateRLWholeBodyTrackingLafan")
+            return std::make_shared<g1_fsm::RLFSMStateRLWholeBodyTrackingLafan>(rl);
         return nullptr;
     }
     std::string GetType() const override { return "g1"; }
@@ -496,6 +594,7 @@ public:
             "RLFSMStateRLRoboMimicLocomotion",
             "RLFSMStateRLRoboMimicCharleston",
             "RLFSMStateRLWholeBodyTrackingDance102",
+            "RLFSMStateRLWholeBodyTrackingLafan",
             "RLFSMStateRLWholeBodyTrackingGangnamStyle"
         };
     }

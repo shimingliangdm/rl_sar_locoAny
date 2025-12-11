@@ -220,9 +220,13 @@ if(USE_TORCH OR USE_ONNX)
     endforeach()
 endif()
 
+
+
 find_package(TBB REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+
+
 
 # Add Python library path to RPATH
 if(Python3_LIBRARIES)
@@ -268,6 +272,38 @@ message(STATUS "Current system architecture: ${CMAKE_SYSTEM_PROCESSOR}")
 else()
     message(FATAL_ERROR "Unsupported architecture: ${CMAKE_SYSTEM_PROCESSOR}")
 endif()
+
+
+
+# cnpy library
+CMAKE_MINIMUM_REQUIRED(VERSION 3.5 FATAL_ERROR)
+if(COMMAND cmake_policy)
+	cmake_policy(SET CMP0003 NEW)
+endif(COMMAND cmake_policy)
+
+project(CNPY)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+
+option(ENABLE_STATIC "Build static (.a) library" ON)
+
+find_package(ZLIB REQUIRED)
+
+include_directories(${ZLIB_INCLUDE_DIRS})
+
+add_library(cnpy SHARED "library/thirdparty/cnpy/cnpy.cpp" "library/thirdparty/cnpy/cnpy.h")
+target_link_libraries(cnpy ${ZLIB_LIBRARIES})
+install(TARGETS "cnpy" LIBRARY DESTINATION lib PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+
+
+add_library(cnpy-static STATIC "library/thirdparty/cnpy/cnpy.cpp" "library/thirdparty/cnpy/cnpy.h")
+set_target_properties(cnpy-static PROPERTIES OUTPUT_NAME "cnpy")
+install(TARGETS "cnpy-static" ARCHIVE DESTINATION lib)
+
+
+install(FILES "library/thirdparty/cnpy/cnpy.h" DESTINATION include)
+
+
 
 # unitree_legged_sdk
 if(SYSTEM_TYPE STREQUAL "Linux")
@@ -339,6 +375,7 @@ include_directories(
     library/core/fsm
     library/core/vector_math
     library/core/motion_loader
+    library/core/video_mimic_motion_loader
     library/core/inference_runtime
     library/core/logger
     fsm_robot
@@ -366,15 +403,39 @@ endif()
 
 # library for motion loader
 add_library(motion_loader library/core/motion_loader/motion_loader.cpp)
+add_library(video_mimic_motion_loader library/core/motion_loader/video_mimic_motion_loader.cpp library/core/motion_loader/math_struct.hpp)
+
+
+set(ROBOTPKG_DIR "/opt/openrobots")
+
+list(APPEND CMAKE_PREFIX_PATH ${ROBOTPKG_DIR})
+include_directories(
+    /usr/include/eigen3
+    ${ROBOTPKG_DIR}/include)
+link_directories(${ROBOTPKG_DIR}/lib)
+
+set(pinocchio_LIBRARIES 
+    ${ROBOTPKG_DIR}/lib/libpinocchio_default.so
+    ${ROBOTPKG_DIR}/lib/libpinocchio_parsers.so
+    ${ROBOTPKG_DIR}/lib/libpinocchio_collision.so
+)
+
+message(STATUS "Robotpkg directory: ${ROBOTPKG_DIR}")
+message(STATUS "Pinocchio include dirs: ${pinocchio_INCLUDE_DIRS}")
+message(STATUS "Pinocchio libraries: ${pinocchio_LIBRARIES}")
 
 # library for rl sdk
 add_library(rl_sdk library/core/rl_sdk/rl_sdk.cpp)
+target_link_libraries(video_mimic_motion_loader cnpy)
 target_link_libraries(rl_sdk PUBLIC
     motion_loader
+    video_mimic_motion_loader 
     inference_runtime
     Python3::Python
     Python3::Module
     TBB::tbb
+    cnpy
+    ${pinocchio_LIBRARIES}
 )
 find_package(Python3 COMPONENTS NumPy)
 if(Python3_NumPy_FOUND)
@@ -508,6 +569,7 @@ if(SYSTEM_TYPE STREQUAL "Linux")
         rl_sdk
         observation_buffer
             ${YAML_CPP_LIBRARIES}
+        cnpy
     )
     # Add unitree_sdk2 library path to RPATH
     set_target_properties(rl_real_g1 PROPERTIES
@@ -576,6 +638,9 @@ endif()
 # mujoco
 # ========================
 if(USE_MUJOCO)
+    find_package(ZLIB REQUIRED)
+
+    
     add_compile_definitions(USE_MUJOCO)
     set(MUJOCO_DIR "${PROJECT_ROOT_DIR}/library/mujoco")
 
@@ -666,6 +731,9 @@ if(USE_MUJOCO)
     target_link_libraries(rl_sim_mujoco
         rl_sdk observation_buffer ${YAML_CPP_LIBRARIES}
         Threads::Threads mujoco_prebuilt glfw
+        ${ZLIB_LIBRARIES}
+        ${TORCH_LIBRARIES}
+        cnpy
     )
 
     # macOS specific frameworks and libraries

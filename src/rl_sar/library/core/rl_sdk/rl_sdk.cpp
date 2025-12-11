@@ -4,6 +4,9 @@
  */
 
 #include "rl_sdk.hpp"
+#include <random>
+#include <algorithm>
+
 
 void RL::StateController(const RobotState<float>* state, RobotCommand<float>* command)
 {
@@ -59,6 +62,26 @@ void RL::StateController(const RobotState<float>* state, RobotCommand<float>* co
         this->control.navigation_mode = !this->control.navigation_mode;
         std::cout << std::endl << LOGGER::INFO << "Navigation mode: " << (this->control.navigation_mode ? "ON" : "OFF") << std::endl;
     }
+}
+
+std::vector<float> RL::UniformNoise(const std::vector<float>& x, float min, float max)
+{
+    std::vector<float> result = x;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(min, max);
+    for (auto& val : result) 
+    {
+        val += dis(gen);
+    }
+
+    return result;
+}
+
+std::vector<float> RL::ApplyNoise(const std::vector<float>& x, float min, float max)
+{
+    return UniformNoise(x, min, max);
 }
 
 std::vector<float> RL::ComputeObservation()
@@ -165,12 +188,296 @@ std::vector<float> RL::ComputeObservation()
             std::vector<float> phase_vec = {phase};
             obs_list.push_back(phase_vec);
         }
+        // ============= lafan Observations =============
+        if (observation == "lafan_motion_command")
+        {
+            std::vector<float> motion_cmd;
+            if (this->video_mimic_motion_loader)
+            {
+                auto joint_pos_sdk = this->video_mimic_motion_loader->GetJointPos();
+                auto joint_vel_sdk = this->video_mimic_motion_loader->GetJointVel();
+                auto joint_mapping = this->params.Get<std::vector<int>>("joint_mapping");
+                std::vector<float> joint_pos_training(joint_mapping.size());
+                std::vector<float> joint_vel_training(joint_mapping.size());
+                for (size_t i = 0; i < joint_mapping.size(); ++i)
+                {
+                    //joint_pos_training[i] = joint_pos_sdk[joint_mapping[i]];
+                    //joint_vel_training[i] = joint_vel_sdk[joint_mapping[i]];
+                    joint_pos_training[i] = joint_pos_sdk[i];
+                    joint_vel_training[i] = joint_vel_sdk[i];
+                }
+                motion_cmd.insert(motion_cmd.end(), joint_pos_training.begin(), joint_pos_training.end());
+                motion_cmd.insert(motion_cmd.end(), joint_vel_training.begin(), joint_vel_training.end());
+
+                if (cur_joint_pos_action.size() == 0)
+                {
+                    // which means it's first frame
+                    cur_joint_pos_action.insert(cur_joint_pos_action.end(), joint_pos_training.begin(), joint_pos_training.end());
+                    cur_joint_vel_action.insert(cur_joint_vel_action.end(), joint_vel_training.begin(), joint_vel_training.end());
+
+                    last_joint_pos_action.assign(29, 0.0);
+                    last_joint_vel_action.assign(29, 0.0);
+                }
+                else
+                {
+                    last_joint_pos_action.clear();
+                    last_joint_pos_action.insert(last_joint_pos_action.end(), cur_joint_pos_action.begin(), cur_joint_pos_action.end());
+                    
+                    last_joint_vel_action.clear();
+                    last_joint_vel_action.insert(last_joint_vel_action.end(), cur_joint_vel_action.begin(), cur_joint_vel_action.end());
+
+                    cur_joint_pos_action.clear();
+                    cur_joint_vel_action.clear();
+                    cur_joint_pos_action.insert(cur_joint_pos_action.end(), joint_pos_training.begin(), joint_pos_training.end());
+                    cur_joint_vel_action.insert(cur_joint_vel_action.end(), joint_vel_training.begin(), joint_vel_training.end());
+                }
+            }
+            else
+            {
+                motion_cmd.resize(this->params.Get<int>("num_of_dofs") * 2, 0.0f);
+            }
+            std::vector<float> ref_root_pos_10_30_60_w = video_mimic_motion_loader->GetFutureRootPos();
+            Eigen::Vector3d p_ref_future_10(ref_root_pos_10_30_60_w[0], ref_root_pos_10_30_60_w[1], ref_root_pos_10_30_60_w[2]);
+            Eigen::Vector3d p_ref_future_30(ref_root_pos_10_30_60_w[3], ref_root_pos_10_30_60_w[4], ref_root_pos_10_30_60_w[5]);
+            Eigen::Vector3d p_ref_future_60(ref_root_pos_10_30_60_w[6], ref_root_pos_10_30_60_w[7], ref_root_pos_10_30_60_w[8]);
+            std::vector<float> real_root_pos_w = root_world_joint_translation;
+            // wxyz
+            std::vector<float> real_root_quat_w = root_world_joint_quat;
+            Eigen::Vector3d p_real(real_root_pos_w[0], real_root_pos_w[1], real_root_pos_w[2]);
+            Eigen::Quaterniond q_real(real_root_quat_w[0], real_root_quat_w[1], real_root_quat_w[2], real_root_quat_w[3]);
+            Eigen::Vector3d pos_in_robot_frame_future_10 = q_real.inverse() * (p_ref_future_10 - p_real);
+            Eigen::Vector3d pos_in_robot_frame_future_30 = q_real.inverse() * (p_ref_future_30 - p_real);
+            Eigen::Vector3d pos_in_robot_frame_future_60 = q_real.inverse() * (p_ref_future_60 - p_real);
+            std::vector<float> future_ref_10 = 
+            {
+                pos_in_robot_frame_future_10.x(), 
+                pos_in_robot_frame_future_10.y(), 
+                pos_in_robot_frame_future_10.z()
+            };
+            std::vector<float> future_ref_30 = 
+            {
+                pos_in_robot_frame_future_30.x(), 
+                pos_in_robot_frame_future_30.y(), 
+                pos_in_robot_frame_future_30.z()
+            };
+            std::vector<float> future_ref_60 = 
+            {
+                pos_in_robot_frame_future_60.x(), 
+                pos_in_robot_frame_future_60.y(), 
+                pos_in_robot_frame_future_60.z()
+            };
+            motion_cmd.insert(motion_cmd.end(), future_ref_10.begin(), future_ref_10.end());
+            motion_cmd.insert(motion_cmd.end(), future_ref_30.begin(), future_ref_30.end());
+            motion_cmd.insert(motion_cmd.end(), future_ref_60.begin(), future_ref_60.end());
+
+            obs_list.push_back(motion_cmd);
+        }
+        else if (observation == "lafan_motion_anchor_pos_b")
+        {
+            std::vector<float> root_pos_in_robot_frame_vec(3, 0.0);
+            if (this->video_mimic_motion_loader)
+            {
+                std::vector<float> ref_root_pos_w = video_mimic_motion_loader->GetRootPos();
+                std::vector<float> ref_root_quat_w = video_mimic_motion_loader->GetRootQuat();
+
+                std::vector<float> real_root_pos_w = root_world_joint_translation;
+                // wxyz
+                std::vector<float> real_root_quat_w = root_world_joint_quat;
+
+                Eigen::Vector3d p_ref(ref_root_pos_w[0], ref_root_pos_w[1], ref_root_pos_w[2]);
+                Eigen::Quaterniond q_ref(ref_root_quat_w[0], ref_root_quat_w[1], ref_root_quat_w[2], ref_root_quat_w[3]); // w, x, y, z
+                
+                Eigen::Vector3d p_real(real_root_pos_w[0], real_root_pos_w[1], real_root_pos_w[2]);
+                Eigen::Quaterniond q_real(real_root_quat_w[0], real_root_quat_w[1], real_root_quat_w[2], real_root_quat_w[3]); // w, x, y, z
+
+                q_ref.normalize();
+                q_real.normalize();
+
+                Eigen::Vector3d pos_in_robot_frame = q_real.inverse() * (p_ref - p_real);
+
+                root_pos_in_robot_frame_vec[0] = pos_in_robot_frame.x();
+                root_pos_in_robot_frame_vec[1] = pos_in_robot_frame.y();
+                root_pos_in_robot_frame_vec[2] = pos_in_robot_frame.z();
+            }
+            obs_list.push_back(root_pos_in_robot_frame_vec);
+        }
+        else if (observation == "lafan_motion_anchor_ori_b")
+        {
+            std::vector<float> root_quat_in_robot_frame_vec;
+            if (this->video_mimic_motion_loader)
+            {
+                std::vector<float> ref_root_pos_w = video_mimic_motion_loader->GetRootPos();
+                std::vector<float> ref_root_quat_w = video_mimic_motion_loader->GetRootQuat();
+
+                std::vector<float> real_root_pos_w = root_world_joint_translation;
+                // wxyz
+                std::vector<float> real_root_quat_w = root_world_joint_quat;
+
+                Eigen::Vector3d p_ref(ref_root_pos_w[0], ref_root_pos_w[1], ref_root_pos_w[2]);
+                Eigen::Quaterniond q_ref(ref_root_quat_w[0], ref_root_quat_w[1], ref_root_quat_w[2], ref_root_quat_w[3]); // w, x, y, z
+                
+                Eigen::Vector3d p_real(real_root_pos_w[0], real_root_pos_w[1], real_root_pos_w[2]);
+                Eigen::Quaterniond q_real(real_root_quat_w[0], real_root_quat_w[1], real_root_quat_w[2], real_root_quat_w[3]); // w, x, y, z
+
+                q_ref.normalize();
+                q_real.normalize();
+
+                Eigen::Quaterniond quat_in_robot_frame = q_real.inverse() * q_ref;
+                
+                // we take first 2 columns of the rotation matrix
+                Eigen::Matrix3d mat = quat_in_robot_frame.toRotationMatrix();
+                for (int i=0; i<3; i++)
+                {
+                    root_quat_in_robot_frame_vec.push_back(mat(i, 0));
+                    root_quat_in_robot_frame_vec.push_back(mat(i, 1));
+                }
+            }
+            else
+            {
+                root_quat_in_robot_frame_vec = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            }
+            obs_list.push_back(root_quat_in_robot_frame_vec);
+        }
+        else if (observation == "lafan_joint_pos_history")
+        {
+            // information from locoAny printing that
+            // length of JointPosHistory is 167 !!!
+
+            std::vector<float> joint_pos_history;
+            std::vector<float> noise_lin_vel_b = ApplyNoise(root_local_joint_lin_vel, noise_lin_vel_b_min, noise_lin_vel_b_max);
+            joint_pos_history.insert(joint_pos_history.end(), noise_lin_vel_b.begin(), noise_lin_vel_b.end());
+
+            std::vector<float> noise_ang_vel_b = ApplyNoise(root_local_joint_ang_vel, noise_ang_vel_b_min, noise_ang_vel_b_max);
+            joint_pos_history.insert(joint_pos_history.end(), noise_ang_vel_b.begin(), noise_ang_vel_b.end());
+            // this is how default joint pos looks like
+            /******
+            init_state=ArticulationCfg.InitialStateCfg(
+                pos=(0.0, 0.0, 0.76),
+                joint_pos={
+                    ".*_hip_pitch_joint": -0.312,
+                    ".*_knee_joint": 0.669,
+                    ".*_ankle_pitch_joint": -0.363,
+                    ".*_elbow_joint": 0.6,
+                    "left_shoulder_roll_joint": 0.2,
+                    "left_shoulder_pitch_joint": 0.2,
+                    "right_shoulder_roll_joint": -0.2,
+                    "right_shoulder_pitch_joint": 0.2,
+                },
+                joint_vel={".*": 0.0},
+            )
+            */
+            std::vector<float> joint_pos_rels;
+            for (int i=0; i<29; i++)
+            {
+                float joint_pos_rel = cur_joint_pos[i] - default_joint_pos[i];
+                joint_pos_rels.push_back(joint_pos_rel);
+            }
+            std::vector<float> noise_joint_pos_rel = ApplyNoise(joint_pos_rels, noise_joint_pos_min, noise_joint_pos_max);
+            joint_pos_history.insert(joint_pos_history.end(), noise_joint_pos_rel.begin(), noise_joint_pos_rel.end());
+
+            std::vector<float> joint_vel_rels;
+            for (int i=0; i<29; i++)
+            {
+                // joint vel is assigned becuase default joint vel is 0
+                float joint_vel_rel = cur_joint_vel[i];
+                joint_vel_rels.push_back(joint_vel_rel);
+            }
+            std::vector<float> noise_joint_vel_rel = ApplyNoise(joint_vel_rels, noise_joint_vel_min, noise_joint_vel_max);
+            joint_pos_history.insert(joint_pos_history.end(), noise_joint_vel_rel.begin(), noise_joint_vel_rel.end());
+
+            std::vector<float> imu = cur_imu;
+            joint_pos_history.insert(joint_pos_history.end(), imu.begin(), imu.end());
+
+            std::vector<float> last_action = last_joint_pos_action;
+            joint_pos_history.insert(joint_pos_history.end(), last_action.begin(), last_action.end());
+
+            std::vector<float> priv_explicit(9, 0.0);
+            priv_explicit[0] = root_local_joint_lin_vel[0] * 2.0;
+            priv_explicit[1] = root_local_joint_lin_vel[1] * 2.0;
+            priv_explicit[2] = root_local_joint_lin_vel[2] * 2.0;
+            joint_pos_history.insert(joint_pos_history.end(), priv_explicit.begin(), priv_explicit.end());
+
+            /* mass information is fetched from mujoco model
+            === Unitree G1 Body Masses ===
+            ID: 0 | Name: world | Mass: 0 kg
+            ID: 1 | Name: pelvis | Mass: 3.813 kg
+            ID: 2 | Name: left_hip_pitch_link | Mass: 1.35 kg
+            ID: 3 | Name: left_hip_roll_link | Mass: 1.52 kg
+            ID: 4 | Name: left_hip_yaw_link | Mass: 1.702 kg
+            ID: 5 | Name: left_knee_link | Mass: 1.932 kg
+            ID: 6 | Name: left_ankle_pitch_link | Mass: 0.074 kg
+            ID: 7 | Name: left_ankle_roll_link | Mass: 0.608 kg
+            ID: 8 | Name: right_hip_pitch_link | Mass: 1.35 kg
+            ID: 9 | Name: right_hip_roll_link | Mass: 1.52 kg
+            ID: 10 | Name: right_hip_yaw_link | Mass: 1.702 kg
+            ID: 11 | Name: right_knee_link | Mass: 1.932 kg
+            ID: 12 | Name: right_ankle_pitch_link | Mass: 0.074 kg
+            ID: 13 | Name: right_ankle_roll_link | Mass: 0.608 kg
+            ID: 14 | Name: waist_yaw_link | Mass: 0.244 kg
+            ID: 15 | Name: waist_roll_link | Mass: 0.047 kg
+            ID: 16 | Name: torso_link | Mass: 9.598 kg
+            ID: 17 | Name: left_shoulder_pitch_link | Mass: 0.718 kg
+            ID: 18 | Name: left_shoulder_roll_link | Mass: 0.643 kg
+            ID: 19 | Name: left_shoulder_yaw_link | Mass: 0.734 kg
+            ID: 20 | Name: left_elbow_link | Mass: 0.6 kg
+            ID: 21 | Name: left_wrist_roll_link | Mass: 0.085445 kg
+            ID: 22 | Name: left_wrist_pitch_link | Mass: 0.48405 kg
+            ID: 23 | Name: left_wrist_yaw_link | Mass: 0.254576 kg
+            ID: 24 | Name: right_shoulder_pitch_link | Mass: 0.718 kg
+            ID: 25 | Name: right_shoulder_roll_link | Mass: 0.643 kg
+            ID: 26 | Name: right_shoulder_yaw_link | Mass: 0.734 kg
+            ID: 27 | Name: right_elbow_link | Mass: 0.6 kg
+            ID: 28 | Name: right_wrist_roll_link | Mass: 0.085445 kg
+            ID: 29 | Name: right_wrist_pitch_link | Mass: 0.48405 kg
+            ID: 30 | Name: right_wrist_yaw_link | Mass: 0.254576 kg
+            ==============================
+            */
+
+            /* default joint stiffness of each joint
+            [40.1792, 40.1792, 40.1792, 99.0984, 99.0984, 28.5012, 40.1792, 40.1792,
+                28.5012, 99.0984, 99.0984, 14.2506, 14.2506, 28.5012, 28.5012, 14.2506,
+                14.2506, 28.5012, 28.5012, 14.2506, 14.2506, 14.2506, 14.2506, 14.2506,
+                14.2506, 16.7783, 16.7783, 16.7783, 16.7783]
+            */
+
+            /* default joint damping of each joint
+            [2.5579, 2.5579, 2.5579, 6.3088, 6.3088, 1.8144, 2.5579, 2.5579, 1.8144,
+                6.3088, 6.3088, 0.9072, 0.9072, 1.8144, 1.8144, 0.9072, 0.9072, 1.8144,
+                1.8144, 0.9072, 0.9072, 0.9072, 0.9072, 0.9072, 0.9072, 1.0681, 1.0681,
+                1.0681, 1.0681]
+            */
+
+            /* friction in simulation is
+            [0.4369, 1.1136]
+            */
+
+
+            // this is the center of mass in python
+            //body_com = self.asset.data.com_pos_b[:,self.body_id,:].to(self.device).squeeze(1)
+            // actually it's the position of root joint
+            std::vector<float> mass_params(4, 0.0);
+            mass_params[0] = 3.813;
+            mass_params[1] = root_local_joint_translation[0];
+            mass_params[2] = root_local_joint_translation[1];
+            mass_params[3] = root_local_joint_translation[2];
+            joint_pos_history.insert(joint_pos_history.end(), mass_params.begin(), mass_params.end());
+
+            std::vector<float> friction_coeffs = {0.4369};
+            joint_pos_history.insert(joint_pos_history.end(), friction_coeffs.begin(), friction_coeffs.end());
+
+            std::vector<float> kp_ratio(29, 1.0);
+            std::vector<float> kd_ratio(29, 1.0);
+            joint_pos_history.insert(joint_pos_history.end(), kp_ratio.begin(), kp_ratio.end());
+            joint_pos_history.insert(joint_pos_history.end(), kd_ratio.begin(), kd_ratio.end());
+
+            obs_list.push_back(joint_pos_history);
+        }
     }
 
     this->obs_dims.clear();
     for (const auto& obs : obs_list)
     {
-       this->obs_dims.push_back(obs.size());
+        this->obs_dims.push_back(obs.size());
     }
 
     std::vector<float> obs;
@@ -194,6 +501,13 @@ void RL::InitObservations()
     this->obs.dof_vel.resize(this->params.Get<int>("num_of_dofs"), 0.0f);
     this->obs.actions.clear();
     this->obs.actions.resize(this->params.Get<int>("num_of_dofs"), 0.0f);
+
+    // for lafan motion mimic
+    this->obs.lafan_motion_command.assign(67, 0.0);
+    this->obs.lafan_motion_anchor_pos_b.assign(3, 0.0);
+    this->obs.lafan_motion_anchor_ori_b.assign(6, 0.0);
+    this->obs.lafan_joint_pos_history.assign(167, 0.0);
+
     this->ComputeObservation();
 }
 
@@ -231,6 +545,154 @@ void RL::InitRL(std::string robot_config_path)
     // init joint num first
     this->InitJointNum(this->params.Get<int>("num_of_dofs"));
 
+    if (!pinocchio_initialized)
+    {
+        std::string urdf_path = "/home/dm/rl_sar_locoAny/src/rl_sar/library/core/rl_sdk/g1_29dof.urdf";
+        pinocchio::urdf::buildModel(urdf_path, pinocchio::JointModelFreeFlyer(), model_pin);
+        data_pin = pinocchio::Data(model_pin);
+
+        root_world_joint_translation = {0.0, 0.0, 0.0};
+        root_world_joint_quat = {0.0, 0.0, 0.0, 0.0};
+        root_world_joint_lin_vel = {0.0, 0.0, 0.0};
+        root_world_joint_ang_vel = {0.0, 0.0, 0.0};
+
+        root_local_joint_translation = {0.0, 0.0, 0.0};
+        root_local_joint_quat = {0.0, 0.0, 0.0, 0.0};
+        root_local_joint_lin_vel = {0.0, 0.0, 0.0};
+        root_local_joint_ang_vel = {0.0, 0.0, 0.0};
+
+        cur_joint_pos.assign(29, 0.0);
+        /*
+        joint_pos={
+            ".*_hip_pitch_joint": -0.312,
+            ".*_knee_joint": 0.669,
+            ".*_ankle_pitch_joint": -0.363,
+            ".*_elbow_joint": 0.6,
+            "left_shoulder_roll_joint": 0.2,
+            "left_shoulder_pitch_joint": 0.2,
+            "right_shoulder_roll_joint": -0.2,
+            "right_shoulder_pitch_joint": 0.2,
+        }
+        */
+
+        /* joint names
+        [
+            "left_hip_pitch_joint",
+            "left_hip_roll_joint",
+            "left_hip_yaw_joint",
+            "left_knee_joint",
+            "left_ankle_pitch_joint", 
+            "left_ankle_roll_joint",
+            "right_hip_pitch_joint",
+            "right_hip_roll_joint",
+            "right_hip_yaw_joint",
+            "right_knee_joint",
+            "right_ankle_pitch_joint",
+            "right_ankle_roll_joint",
+            "waist_yaw_joint",
+            "waist_roll_joint",
+            "waist_pitch_joint",
+            "left_shoulder_pitch_joint",
+            "left_shoulder_roll_joint",
+            "left_shoulder_yaw_joint",
+            "left_elbow_joint",
+            "left_wrist_roll_joint",
+            "left_wrist_pitch_joint",
+            "left_wrist_yaw_joint",
+            "right_shoulder_pitch_joint",
+            "right_shoulder_roll_joint",
+            "right_shoulder_yaw_joint",
+            "right_elbow_joint",
+            "right_wrist_roll_joint",
+            "right_wrist_pitch_joint",
+            "right_wrist_yaw_joint"
+        ]
+        */
+        default_joint_pos.assign(29, 0.0);
+        default_joint_pos[0] = -0.312;
+        default_joint_pos[6] = -0.312;
+        default_joint_pos[3] = 0.669;
+        default_joint_pos[9] = 0.669;
+        default_joint_pos[4] = -0.363;
+        default_joint_pos[10] = -0.363;
+        default_joint_pos[18] = 0.6;
+        default_joint_pos[25] = 0.6;
+        default_joint_pos[16] = 0.2;
+        default_joint_pos[15] = 0.2;
+        default_joint_pos[23] = -0.2;
+        default_joint_pos[22] = 0.2;
+
+        cur_joint_vel.assign(29, 0.0);
+
+        default_kp.assign(29, 0.0);
+        default_kd.assign(29, 0.0);
+        
+        default_kp[0] = 40.1792;
+        default_kp[1] = 40.1792;
+        default_kp[2] = 40.1792;
+        default_kp[3] = 99.0984;
+        default_kp[4] = 99.0984;
+        default_kp[5] = 28.5012;
+        default_kp[6] = 40.1792;
+        default_kp[7] = 40.1792;
+        default_kp[8] = 28.5012;
+        default_kp[9] = 99.0984;
+        default_kp[10] = 99.0984;
+        default_kp[11] = 14.2506;
+        default_kp[12] = 14.2506;
+        default_kp[13] = 28.5012;
+        default_kp[14] = 28.5012;
+        default_kp[15] = 14.2506;
+        default_kp[16] = 14.2506;
+        default_kp[17] = 28.5012;
+        default_kp[18] = 28.5012;
+        default_kp[19] = 14.2506;
+        default_kp[20] = 14.2506;
+        default_kp[21] = 14.2506;
+        default_kp[22] = 14.2506;
+        default_kp[23] = 14.2506;
+        default_kp[24] = 14.2506;
+        default_kp[25] = 16.7783;
+        default_kp[26] = 16.7783;
+        default_kp[27] = 16.7783;
+        default_kp[28] = 16.7783;
+
+        default_kd[0] = 2.5579;
+        default_kd[1] = 2.5579;
+        default_kd[2] = 2.5579;
+        default_kd[3] = 6.3088;
+        default_kd[4] = 6.3088;
+        default_kd[5] = 1.8144;
+        default_kd[6] = 2.5579;
+        default_kd[7] = 2.5579;
+        default_kd[8] = 1.8144;
+        default_kd[9] = 6.3088;
+        default_kd[10] = 6.3088;
+        default_kd[11] = 0.9072;
+        default_kd[12] = 0.9072;
+        default_kd[13] = 1.8144;
+        default_kd[14] = 1.8144;
+        default_kd[15] = 0.9072;
+        default_kd[16] = 0.9072;
+        default_kd[17] = 1.8144;
+        default_kd[18] = 1.8144;
+        default_kd[19] = 0.9072;
+        default_kd[20] = 0.9072;
+        default_kd[21] = 0.9072;
+        default_kd[22] = 0.9072;
+        default_kd[23] = 0.9072;
+        default_kd[24] = 0.9072;
+        default_kd[25] = 1.0681;
+        default_kd[26] = 1.0681;
+        default_kd[27] = 1.0681;
+        default_kd[28] = 1.0681;
+
+        cur_kp.assign(29, 0.0);
+        cur_kd.assign(29, 0.0);
+
+        pinocchio_initialized = true;
+    }
+    
     // init rl
     this->InitObservations();
     this->InitOutputs();

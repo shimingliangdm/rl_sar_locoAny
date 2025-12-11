@@ -24,6 +24,13 @@
 #include "inference_runtime.hpp"
 #include "logger.hpp"
 #include "motion_loader.hpp"
+#include "video_mimic_motion_loader.hpp"
+
+#include <pinocchio/fwd.hpp>
+#include <pinocchio/parsers/urdf.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/joint-configuration.hpp>
 
 template <typename T>
 struct RobotCommand
@@ -76,6 +83,9 @@ struct RobotState
             cur.resize(num_joints, 0.0f);
         }
     } motor_state;
+
+    std::vector<T> kp;
+    std::vector<T> kd;
 };
 
 namespace Input
@@ -180,6 +190,23 @@ struct Observations
     std::vector<T> dof_pos;
     std::vector<T> dof_vel;
     std::vector<T> actions;
+    std::vector<T> lafan_motion_command;
+    std::vector<T> lafan_motion_anchor_pos_b;
+    std::vector<T> lafan_motion_anchor_ori_b;
+    std::vector<T> lafan_joint_pos_history;
+};
+
+template <typename T>
+struct ObservationsLafanMotion
+{
+    std::vector<T> lin_vel;
+    std::vector<T> ang_vel;
+    std::vector<T> gravity_vec;
+    std::vector<T> commands;
+    std::vector<T> base_quat;
+    std::vector<T> dof_pos;
+    std::vector<T> dof_vel;
+    std::vector<T> actions;
 };
 
 class RL
@@ -198,6 +225,47 @@ public:
     tbb::concurrent_queue<std::vector<float>> output_dof_vel_queue;
     tbb::concurrent_queue<std::vector<float>> output_dof_tau_queue;
 
+    pinocchio::Model model_pin;
+    pinocchio::Data data_pin;
+    bool pinocchio_initialized = false;
+    std::vector<float> root_world_joint_translation;
+    std::vector<float> root_world_joint_quat;
+    std::vector<float> root_world_joint_lin_vel;
+    std::vector<float> root_world_joint_ang_vel;
+
+    std::vector<float> root_local_joint_translation;
+    std::vector<float> root_local_joint_quat;
+    std::vector<float> root_local_joint_lin_vel;
+    std::vector<float> root_local_joint_ang_vel;
+
+    std::vector<float> cur_joint_pos;
+    std::vector<float> default_joint_pos;
+    std::vector<float> default_kp;
+    std::vector<float> default_kd;
+    std::vector<float> cur_kp;
+    std::vector<float> cur_kd;
+
+    std::vector<float> cur_joint_vel;
+
+    std::vector<float> cur_imu;
+
+    std::vector<float> cur_joint_pos_action;
+    std::vector<float> cur_joint_vel_action;
+    std::vector<float> last_joint_pos_action;
+    std::vector<float> last_joint_vel_action;
+
+    float noise_lin_vel_b_min = -0.5;
+    float noise_lin_vel_b_max = 0.5;
+
+    float noise_ang_vel_b_min = -0.2;
+    float noise_ang_vel_b_max = 0.2;
+
+    float noise_joint_pos_min = -0.01;
+    float noise_joint_pos_max = 0.01;
+
+    float noise_joint_vel_min = -0.5;
+    float noise_joint_vel_max = 0.5;
+
     FSM fsm;
     RobotState<float> start_state;
     RobotState<float> now_state;
@@ -213,6 +281,8 @@ public:
     // rl functions
     virtual std::vector<float> Forward() = 0;
     std::vector<float> ComputeObservation();
+    std::vector<float> UniformNoise(const std::vector<float>& x, float min, float max);
+    std::vector<float> ApplyNoise(const std::vector<float>& x, float min, float max);
     virtual void GetState(RobotState<float> *state) = 0;
     virtual void SetCommand(const RobotCommand<float> *command) = 0;
     void StateController(const RobotState<float> *state, RobotCommand<float> *command);
@@ -245,6 +315,8 @@ public:
 
     // Motion tracking (for mimic/dance tasks)
     std::unique_ptr<MotionLoader> motion_loader;
+
+    std::unique_ptr<VideoMimicMotionLoader> video_mimic_motion_loader;
 
     // protect func
     void TorqueProtect(const std::vector<float> &origin_output_dof_tau);

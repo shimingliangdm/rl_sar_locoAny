@@ -31,6 +31,12 @@
 #include "mujoco_utils.hpp"
 
 #include "matplotlibcpp.h"
+
+#include <mujoco/mjdata.h>
+#include <mujoco/mjui.h>
+#include <mujoco/mjvisualize.h>
+#include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
 namespace plt = matplotlibcpp;
 
 class Button
@@ -103,6 +109,8 @@ private:
     std::map<std::string, float> joint_velocities;
     std::map<std::string, float> joint_efforts;
     void StartJointController(const std::string& ros_namespace, const std::vector<std::string>& names);
+
+    std::vector<mjvGeom> geoms_;
 };
 
 #endif // RL_SIM_HPP
