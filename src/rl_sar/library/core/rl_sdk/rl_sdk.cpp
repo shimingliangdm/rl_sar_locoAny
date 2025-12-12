@@ -465,8 +465,8 @@ std::vector<float> RL::ComputeObservation()
             std::vector<float> friction_coeffs = {0.4369};
             joint_pos_history.insert(joint_pos_history.end(), friction_coeffs.begin(), friction_coeffs.end());
 
-            std::vector<float> kp_ratio(29, 1.0);
-            std::vector<float> kd_ratio(29, 1.0);
+            std::vector<float> kp_ratio(29, 0.0);
+            std::vector<float> kd_ratio(29, 0.0);
             joint_pos_history.insert(joint_pos_history.end(), kp_ratio.begin(), kp_ratio.end());
             joint_pos_history.insert(joint_pos_history.end(), kd_ratio.begin(), kd_ratio.end());
 

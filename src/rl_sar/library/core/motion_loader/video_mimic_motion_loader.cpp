@@ -170,10 +170,10 @@ void VideoMimicMotionLoader::Update(float time)
     index_10_future = static_cast<int>(std::floor(frame_float + 10));
     index_10_future = std::min(index_10_future, num_frames_ - 1);
 
-    index_30_future = static_cast<int>(std::floor(frame_float + 10));
+    index_30_future = static_cast<int>(std::floor(frame_float + 30));
     index_30_future = std::min(index_30_future, num_frames_ - 1);
 
-    index_60_future = static_cast<int>(std::floor(frame_float + 10));
+    index_60_future = static_cast<int>(std::floor(frame_float + 60));
     index_60_future = std::min(index_60_future, num_frames_ - 1);
 
     // Compute blend factor
