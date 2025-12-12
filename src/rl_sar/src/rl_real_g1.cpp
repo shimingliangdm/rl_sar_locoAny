@@ -208,6 +208,7 @@ void RL_Real::GetState(RobotState<float> *state)
         cur_joint_pos[i] = state->motor_state.q[i];
     }
 
+    /*
     if (model_pin.nq > 0)
     {
         Eigen::VectorXd q_pin = Eigen::VectorXd::Zero(model_pin.nq);
@@ -241,40 +242,7 @@ void RL_Real::GetState(RobotState<float> *state)
         float geom_color[4] = {1.0, 0.0, 0.0, 1.0};
         float geom_green_color[4] = {0.0, 1.0, 0.0, 1.0};
 
-        // here is the name of each joint
-        /******
-        Index: 0 | Name: universe
-        Index: 1 | Name: root_joint
-        Index: 2 | Name: left_hip_pitch_joint
-        Index: 3 | Name: left_hip_roll_joint
-        Index: 4 | Name: left_hip_yaw_joint
-        Index: 5 | Name: left_knee_joint
-        Index: 6 | Name: left_ankle_pitch_joint
-        Index: 7 | Name: left_ankle_roll_joint
-        Index: 8 | Name: right_hip_pitch_joint
-        Index: 9 | Name: right_hip_roll_joint
-        Index: 10 | Name: right_hip_yaw_joint
-        Index: 11 | Name: right_knee_joint
-        Index: 12 | Name: right_ankle_pitch_joint
-        Index: 13 | Name: right_ankle_roll_joint
-        Index: 14 | Name: waist_yaw_joint
-        Index: 15 | Name: waist_roll_joint
-        Index: 16 | Name: waist_pitch_joint
-        Index: 17 | Name: left_shoulder_pitch_joint
-        Index: 18 | Name: left_shoulder_roll_joint
-        Index: 19 | Name: left_shoulder_yaw_joint
-        Index: 20 | Name: left_elbow_joint
-        Index: 21 | Name: left_wrist_roll_joint
-        Index: 22 | Name: left_wrist_pitch_joint
-        Index: 23 | Name: left_wrist_yaw_joint
-        Index: 24 | Name: right_shoulder_pitch_joint
-        Index: 25 | Name: right_shoulder_roll_joint
-        Index: 26 | Name: right_shoulder_yaw_joint
-        Index: 27 | Name: right_elbow_joint
-        Index: 28 | Name: right_wrist_roll_joint
-        Index: 29 | Name: right_wrist_pitch_joint
-        Index: 30 | Name: right_wrist_yaw_joint
-        */
+
 
         pinocchio::SE3 world_M_root;
         for (pinocchio::JointIndex joint_id = 1; joint_id < model_pin.joints.size(); ++joint_id)
@@ -360,6 +328,7 @@ void RL_Real::GetState(RobotState<float> *state)
             mjv_initGeom(&local_geom, mjGEOM_SPHERE, geom_size, geom_local_pos, NULL, geom_green_color);
         }
     }
+    */
 }
 
 void RL_Real::SetCommand(const RobotCommand<float> *command)
