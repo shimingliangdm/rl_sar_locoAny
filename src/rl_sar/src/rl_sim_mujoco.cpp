@@ -242,7 +242,7 @@ void RL_Sim::GetState(RobotState<float> *state)
             mjv_updateScene(sim->m_, sim->d_, &sim->opt, &sim->pert, &sim->cam, mjCAT_ALL, &sim->scn);
             
             sim->geoms_.clear();
-            mjtNum geom_size[3] = {0.02, 0.0, 0.0};
+            mjtNum geom_size[3] = {0.05, 0.0, 0.0};
             float geom_color[4] = {1.0, 0.0, 0.0, 1.0};
             float geom_green_color[4] = {0.0, 1.0, 0.0, 1.0};
 

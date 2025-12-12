@@ -13,3 +13,6 @@
 [submodule "src/rl_sar/library/thirdparty/joystick"]
 	path = src/rl_sar/library/thirdparty/joystick
 	url = https://github.com/drewnoakes/joystick.git
+[submodule "src/rl_sar/library/thirdparty/cnpy"]
+	path = src/rl_sar/library/thirdparty/cnpy
+	url = https://github.com/rogersce/cnpy.git
