@@ -292,6 +292,7 @@ find_package(ZLIB REQUIRED)
 include_directories(${ZLIB_INCLUDE_DIRS})
 
 add_library(cnpy SHARED "library/thirdparty/cnpy/cnpy.cpp" "library/thirdparty/cnpy/cnpy.h")
+target_include_directories(cnpy PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/library/thirdparty/cnpy)
 target_link_libraries(cnpy ${ZLIB_LIBRARIES})
 install(TARGETS "cnpy" LIBRARY DESTINATION lib PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
@@ -406,23 +407,42 @@ add_library(motion_loader library/core/motion_loader/motion_loader.cpp)
 add_library(video_mimic_motion_loader library/core/motion_loader/video_mimic_motion_loader.cpp library/core/motion_loader/math_struct.hpp)
 
 
-set(ROBOTPKG_DIR "/opt/openrobots")
 
-list(APPEND CMAKE_PREFIX_PATH ${ROBOTPKG_DIR})
-include_directories(
-    /usr/include/eigen3
-    ${ROBOTPKG_DIR}/include)
-link_directories(${ROBOTPKG_DIR}/lib)
+link_directories(BEFORE /home/unitree/miniconda3/envs/rlsar/lib)
 
-set(pinocchio_LIBRARIES 
-    ${ROBOTPKG_DIR}/lib/libpinocchio_default.so
-    ${ROBOTPKG_DIR}/lib/libpinocchio_parsers.so
-    ${ROBOTPKG_DIR}/lib/libpinocchio_collision.so
+find_package(Torch REQUIRED)
+add_definitions(-DUSE_TORCH)
+
+find_package(pinocchio REQUIRED)
+
+find_library(PINOCCHIO_PARSERS_LIB
+    NAMES pinocchio_parsers
+    HINTS ${pinocchio_INCLUDE_DIRS}/../lib
+    PATHS /home/unitree/miniconda3/envs/rlsar/lib
+    NO_DEFAULT_PATH
 )
 
-message(STATUS "Robotpkg directory: ${ROBOTPKG_DIR}")
+if(NOT PINOCCHIO_PARSERS_LIB)
+    find_library(PINOCCHIO_PARSERS_LIB NAMES pinocchio_parsers)
+endif()
+
+message(STATUS "Pinocchio Parsers Lib Found: ${PINOCCHIO_PARSERS_LIB}")
+
+if(NOT pinocchio_LIBRARIES AND PINOCCHIO_LIBRARIES)
+    set(pinocchio_LIBRARIES ${PINOCCHIO_LIBRARIES})
+endif()
+
+include_directories(
+    /usr/include/eigen3
+    ${pinocchio_INCLUDE_DIRS}
+)
+
+message(STATUS "Found Pinocchio version: ${pinocchio_VERSION}")
 message(STATUS "Pinocchio include dirs: ${pinocchio_INCLUDE_DIRS}")
 message(STATUS "Pinocchio libraries: ${pinocchio_LIBRARIES}")
+
+
+
 
 # library for rl sdk
 add_library(rl_sdk library/core/rl_sdk/rl_sdk.cpp)
@@ -436,6 +456,8 @@ target_link_libraries(rl_sdk PUBLIC
     TBB::tbb
     cnpy
     ${pinocchio_LIBRARIES}
+    ${PINOCCHIO_PARSERS_LIB}
+    ${TORCH_LIBRARIES}
 )
 find_package(Python3 COMPONENTS NumPy)
 if(Python3_NumPy_FOUND)

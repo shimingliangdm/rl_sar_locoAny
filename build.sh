@@ -18,19 +18,6 @@ source "${SCRIPT_DIR}/scripts/common.sh"
 setup_inference_runtime() {
     print_header "[Setting up Inference Runtime]"
 
-    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-    DOWNLOAD_SCRIPT="${SCRIPT_DIR}/scripts/download_inference_runtime.sh"
-
-    if [ -f "$DOWNLOAD_SCRIPT" ]; then
-        print_info "Checking inference libraries..."
-        bash "$DOWNLOAD_SCRIPT" || {
-            print_error "Failed to setup inference libraries"
-            exit 1
-        }
-        print_success "Inference runtime setup completed!"
-    else
-        print_warning "Download script not found: $DOWNLOAD_SCRIPT"
-    fi
 }
 
 setup_mujoco() {
