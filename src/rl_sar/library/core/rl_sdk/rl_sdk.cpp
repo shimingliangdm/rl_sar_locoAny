@@ -547,8 +547,8 @@ void RL::InitRL(std::string robot_config_path)
 
     if (!pinocchio_initialized)
     {
-       // std::string urdf_path = "/home/dm/rl_sar_locoAny/src/rl_sar/library/core/rl_sdk/g1_29dof.urdf";
-        std::string urdf_path = "/home/unitree/rl_sar_locoAny/src/rl_sar/library/core/rl_sdk/g1_29dof.urdf";
+        std::string urdf_path = "/home/dm/rl_sar_locoAny/src/rl_sar/library/core/rl_sdk/g1_29dof.urdf";
+        //std::string urdf_path = "/home/unitree/rl_sar_locoAny/src/rl_sar/library/core/rl_sdk/g1_29dof.urdf";
         pinocchio::urdf::buildModel(urdf_path, pinocchio::JointModelFreeFlyer(), model_pin);
         data_pin = pinocchio::Data(model_pin);
 

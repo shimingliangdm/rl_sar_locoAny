@@ -208,19 +208,19 @@ void RL_Real::GetState(RobotState<float> *state)
         cur_joint_pos[i] = state->motor_state.q[i];
     }
 
-    /*
+    
     if (model_pin.nq > 0)
     {
         Eigen::VectorXd q_pin = Eigen::VectorXd::Zero(model_pin.nq);
 
-        q_pin[0] = mj_data->qpos[0];
-        q_pin[1] = mj_data->qpos[1];
-        q_pin[2] = mj_data->qpos[2];
+        q_pin[0] = 0.0;
+        q_pin[1] = 0.0;
+        q_pin[2] = 0.0;
 
-        q_pin[3] = mj_data->qpos[4];
-        q_pin[4] = mj_data->qpos[5];
-        q_pin[5] = mj_data->qpos[6];
-        q_pin[6] = mj_data->qpos[3];
+        q_pin[3] = state->imu.quaternion[4];
+        q_pin[4] = state->imu.quaternion[5];
+        q_pin[5] = state->imu.quaternion[6];
+        q_pin[6] = state->imu.quaternion[3];
 
         int base_offset = 7;
         for (int i = 0; i < this->params.Get<int>("num_of_dofs"); ++i)
@@ -234,13 +234,6 @@ void RL_Real::GetState(RobotState<float> *state)
         // size of q_pin is 29
         // after reading motion.npz, size of q_pin is 58
         pinocchio::forwardKinematics(model_pin, data_pin, q_pin);
-
-        mjv_updateScene(sim->m_, sim->d_, &sim->opt, &sim->pert, &sim->cam, mjCAT_ALL, &sim->scn);
-            
-        sim->geoms_.clear();
-        mjtNum geom_size[3] = {0.05, 0.0, 0.0};
-        float geom_color[4] = {1.0, 0.0, 0.0, 1.0};
-        float geom_green_color[4] = {0.0, 1.0, 0.0, 1.0};
 
 
 
@@ -306,29 +299,8 @@ void RL_Real::GetState(RobotState<float> *state)
                 root_local_joint_ang_vel[1] = local_angular_vel.y();
                 root_local_joint_ang_vel[2] = local_angular_vel.z();
             }
-
-            mjtNum geom_pos[3];
-            geom_pos[0] = world_translation.x();
-            geom_pos[1] = world_translation.y();
-            geom_pos[2] = world_translation.z();
-
-
-            sim->geoms_.push_back({});
-            auto & geom = sim->geoms_.back();
-            mjv_initGeom(&geom, mjGEOM_SPHERE, geom_size, geom_pos, NULL, geom_color);
-
-
-            mjtNum geom_local_pos[3];
-            geom_local_pos[0] = local_translation.x();
-            geom_local_pos[1] = local_translation.y();
-            geom_local_pos[2] = local_translation.z();
-
-            sim->geoms_.push_back({});
-            auto & local_geom = sim->geoms_.back();
-            mjv_initGeom(&local_geom, mjGEOM_SPHERE, geom_size, geom_local_pos, NULL, geom_green_color);
         }
     }
-    */
 }
 
 void RL_Real::SetCommand(const RobotCommand<float> *command)

@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
 project(rl_sar VERSION 4.0.0 LANGUAGES CXX)
 
+add_definitions(-DSCHED_DEADLINE=6)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=default")
+add_definitions(-DPINOCCHIO_WITH_URDFDOM)
+add_definitions(-DPINOCCHIO_WITH_HPP_FCL)
+
 # Set C++ standard globally
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
