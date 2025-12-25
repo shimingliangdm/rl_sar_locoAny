@@ -388,12 +388,14 @@ RLFSMStateRLWholeBodyTrackingLafan(RL *rl) : RLFSMState(*rl, "RLFSMStateRLWholeB
         std::string robot_config_path = rl.robot_name + "/" + rl.config_name;
         try
         {
-            rl.video_mimic_motion_loader = std::make_unique<VideoMimicMotionLoader>();
+            std::string motion_file_path = std::string(POLICY_DIR) + "/" + 
+                robot_config_path + "/" + 
+                rl.params.Get<std::string>("motion_file") +
+                "retarget_poses_g1_interact_29dof.npz";
+            float fps = 1.0f / (rl.params.Get<float>("dt") * rl.params.Get<int>("decimation"));
+            rl.video_mimic_motion_loader = std::make_unique<VideoMimicMotionLoader>(motion_file_path, fps);
             rl.InitRL(robot_config_path);
 
-            // Initialize motion loader
-            std::string motion_file_path = std::string(POLICY_DIR) + "/" + robot_config_path + "/" + rl.params.Get<std::string>("motion_file");
-            float fps = 1.0f / (rl.params.Get<float>("dt") * rl.params.Get<int>("decimation"));
             rl.motion_length = rl.video_mimic_motion_loader->GetDuration();
 
             auto waist_sdk_indices = rl.params.Get<std::vector<int>>("waist_joint_indices");

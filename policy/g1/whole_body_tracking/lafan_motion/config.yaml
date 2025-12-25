@@ -26,4 +26,4 @@ g1/whole_body_tracking/lafan_motion:
   default_dof_pos: [-0.312, -0.312, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.669, 0.669, 0.200, 0.200, -0.363, -0.363, 0.200, -0.200, 0.000, 0.000, 0.000, 0.000, 0.600, 0.600, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000]
   joint_mapping: [0, 6, 12, 1, 7, 13, 2, 8, 14, 3, 9, 15, 22, 4, 10, 16, 23, 5, 11, 17, 24, 18, 25, 19, 26, 20, 27, 21, 28]
   waist_joint_indices: [12, 13, 14]  # waist_yaw, waist_roll, waist_pitch in SDK order
-  motion_file: "G1_Take_102.bvh_60hz.csv"
+  motion_file: "retarget_poses_g1_interact_29dof.npz"

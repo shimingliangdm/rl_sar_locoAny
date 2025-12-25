@@ -14,11 +14,11 @@
 class VideoMimicMotionLoader
 {
 public:
-    VideoMimicMotionLoader();
+    VideoMimicMotionLoader(const std::string& motion_file, float fps);
 
-    void Init();
+    void Init(const std::string& motion_file);
 
-    void LoadVideoMimicCSV();
+    void LoadVideoMimicCSV(const std::string& filename);
 
     void Update(float time);
 

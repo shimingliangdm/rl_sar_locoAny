@@ -2,16 +2,24 @@
 #include "cnpy.h"
 #include "math_struct.hpp"
 
-VideoMimicMotionLoader::VideoMimicMotionLoader()
+VideoMimicMotionLoader::VideoMimicMotionLoader(const std::string& motion_file, float fps)
     : dt_(1.0f / fps), index_0_(0), index_1_(0), blend_(0.0f), index_10_future(0), index_30_future(0), index_60_future(0)
 {
-    LoadVideoMimicCSV();
+    dt_ = 1.0f / fps;
+    index_0_ = 0;
+    index_1_ = 0;
+    blend_ = 0.0;
+    index_10_future = 0;
+    index_30_future = 0;
+    index_60_future = 0;
+    
+    LoadVideoMimicCSV(motion_file);
 
     num_frames_ = root_positions_.size();
     duration_ = num_frames_ * dt_;
 }
 
-void VideoMimicMotionLoader::Init()
+void VideoMimicMotionLoader::Init(const std::string& motion_file)
 {
     dt_ = 1.0f / fps;
     index_0_ = 0;
@@ -21,16 +29,16 @@ void VideoMimicMotionLoader::Init()
     index_30_future = 0;
     index_60_future = 0;
 
-    LoadVideoMimicCSV();
+    LoadVideoMimicCSV(motion_file);
 
     num_frames_ = root_positions_.size();
     duration_ = num_frames_ * dt_;
 }
 
-void VideoMimicMotionLoader::LoadVideoMimicCSV()
+void VideoMimicMotionLoader::LoadVideoMimicCSV(const std::string& filename)
 {
     
-    cnpy::npz_t npz_data = cnpy::npz_load("/home/dm/locoAny/artifacts/dance1_subject1:v0/motion.npz");
+    cnpy::npz_t npz_data = cnpy::npz_load(filename);
     cnpy::NpyArray joint_poses_array = npz_data["joint_pos"];
     cnpy::NpyArray joint_vels_array = npz_data["joint_vel"];
     cnpy::NpyArray body_pos_w_array = npz_data["body_pos_w"];
@@ -199,7 +207,6 @@ std::vector<float> VideoMimicMotionLoader::GetJointPos() const
     {
         result.push_back(pos0[i] * (1.0f - blend_) + pos1[i] * blend_);
     }
-
     return result;
 }
 

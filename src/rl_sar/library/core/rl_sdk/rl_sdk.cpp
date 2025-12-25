@@ -201,10 +201,10 @@ std::vector<float> RL::ComputeObservation()
                 std::vector<float> joint_vel_training(joint_mapping.size());
                 for (size_t i = 0; i < joint_mapping.size(); ++i)
                 {
-                    //joint_pos_training[i] = joint_pos_sdk[joint_mapping[i]];
-                    //joint_vel_training[i] = joint_vel_sdk[joint_mapping[i]];
-                    joint_pos_training[i] = joint_pos_sdk[i];
-                    joint_vel_training[i] = joint_vel_sdk[i];
+                    joint_pos_training[i] = joint_pos_sdk[joint_mapping[i]];
+                    joint_vel_training[i] = joint_vel_sdk[joint_mapping[i]];
+                    //joint_pos_training[i] = joint_pos_sdk[i];
+                    //joint_vel_training[i] = joint_vel_sdk[i];
                 }
                 motion_cmd.insert(motion_cmd.end(), joint_pos_training.begin(), joint_pos_training.end());
                 motion_cmd.insert(motion_cmd.end(), joint_vel_training.begin(), joint_vel_training.end());
@@ -726,10 +726,26 @@ void RL::ComputeOutput(const std::vector<float> &actions, std::vector<float> &ou
         pos_actions_scaled[i] = 0.0f;
         vel_actions_scaled[i] = actions_scaled[i];
     }
+    /*
+    std::cout << "============" << std::endl;
+    std::cout << pos_actions_scaled << std::endl;
+    std::cout << "------------" << std::endl;
+    std::cout << vel_actions_scaled << std::endl;
+    */
     std::vector<float> all_actions_scaled = pos_actions_scaled + vel_actions_scaled;
     output_dof_pos = pos_actions_scaled + this->params.Get<std::vector<float>>("default_dof_pos");
+    /*
+    std::cout << "***********" << std::endl;
+    std::cout << this->params.Get<std::vector<float>>("default_dof_pos") << std::endl;
+    std::cout << "^^^^^^^^^^^" << std::endl;
+    std::cout << output_dof_pos << std::endl;
+    */
     output_dof_vel = vel_actions_scaled;
     output_dof_tau = this->params.Get<std::vector<float>>("rl_kp") * (all_actions_scaled + this->params.Get<std::vector<float>>("default_dof_pos") - this->obs.dof_pos) - this->params.Get<std::vector<float>>("rl_kd") * this->obs.dof_vel;
+    /*
+    std::cout << "$$$$$$$$$$$$" << std::endl;
+    std::cout << output_dof_tau << std::endl;
+    */
     output_dof_tau = clamp(output_dof_tau, -this->params.Get<std::vector<float>>("torque_limits"), this->params.Get<std::vector<float>>("torque_limits"));
 }
 
