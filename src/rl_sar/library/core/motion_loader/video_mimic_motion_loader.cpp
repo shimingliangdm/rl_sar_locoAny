@@ -104,7 +104,7 @@ void VideoMimicMotionLoader::LoadVideoMimicCSV(const std::string& filename)
     // anchor body idx: 9
 
     std::vector<int> target_body_idx = {0,  4, 10, 18,  5, 11, 19,  9, 16, 22, 28, 17, 23, 29};
-    int anchor_body_idx = 9;
+    int anchor_body_idx = 0;
     for (int i=0; i<frame_nb; i++)
     {
         std::vector<float> frame_joint_pos;
@@ -254,7 +254,7 @@ std::vector<float> VideoMimicMotionLoader::ComputeYawAlignment(const std::vector
 
 std::vector<float> VideoMimicMotionLoader::GetRootPos() const
 {
-    std::vector<float> anchor_pos = Slerp(root_positions_[index_0_], root_positions_[index_1_], blend_);
+    std::vector<float> anchor_pos = Lerp(root_positions_[index_0_], root_positions_[index_1_], blend_);
     return anchor_pos;
 }
 
@@ -289,6 +289,16 @@ std::vector<float> VideoMimicMotionLoader::GetAnchorQuat() const
 
     std::vector<float> waist_angles = {joint_pos[WAIST_YAW_IDX], joint_pos[WAIST_ROLL_IDX], joint_pos[WAIST_PITCH_IDX]};
     return ComputeTorsoQuat(root_quat, waist_angles);
+}
+
+std::vector<float> VideoMimicMotionLoader::Lerp(const std::vector<float>& p0, const std::vector<float>& p1, float t) const
+{
+    std::vector<float> result;
+    for (size_t i = 0; i < p0.size(); ++i)
+    {
+        result.push_back(p0[i] + (p1[i] - p0[i]) * t);
+    }
+    return result;
 }
 
 std::vector<float> VideoMimicMotionLoader::Slerp(const std::vector<float>& q0, const std::vector<float>& q1, float t) const

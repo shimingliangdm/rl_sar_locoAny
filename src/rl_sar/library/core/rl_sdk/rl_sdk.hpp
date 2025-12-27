@@ -239,9 +239,6 @@ public:
     std::vector<float> root_local_joint_ang_vel;
 
     std::vector<float> cur_joint_pos;
-    std::vector<float> default_joint_pos;
-    std::vector<float> default_kp;
-    std::vector<float> default_kd;
     std::vector<float> cur_kp;
     std::vector<float> cur_kd;
 

@@ -349,27 +349,11 @@ std::vector<float> RL::ComputeObservation()
 
             std::vector<float> noise_ang_vel_b = ApplyNoise(root_local_joint_ang_vel, noise_ang_vel_b_min, noise_ang_vel_b_max);
             joint_pos_history.insert(joint_pos_history.end(), noise_ang_vel_b.begin(), noise_ang_vel_b.end());
-            // this is how default joint pos looks like
-            /******
-            init_state=ArticulationCfg.InitialStateCfg(
-                pos=(0.0, 0.0, 0.76),
-                joint_pos={
-                    ".*_hip_pitch_joint": -0.312,
-                    ".*_knee_joint": 0.669,
-                    ".*_ankle_pitch_joint": -0.363,
-                    ".*_elbow_joint": 0.6,
-                    "left_shoulder_roll_joint": 0.2,
-                    "left_shoulder_pitch_joint": 0.2,
-                    "right_shoulder_roll_joint": -0.2,
-                    "right_shoulder_pitch_joint": 0.2,
-                },
-                joint_vel={".*": 0.0},
-            )
-            */
+
             std::vector<float> joint_pos_rels;
             for (int i=0; i<29; i++)
             {
-                float joint_pos_rel = cur_joint_pos[i] - default_joint_pos[i];
+                float joint_pos_rel = cur_joint_pos[i] - this->params.Get<std::vector<float>>("default_dof_pos")[i];
                 joint_pos_rels.push_back(joint_pos_rel);
             }
             std::vector<float> noise_joint_pos_rel = ApplyNoise(joint_pos_rels, noise_joint_pos_min, noise_joint_pos_max);
@@ -431,20 +415,6 @@ std::vector<float> RL::ComputeObservation()
             ID: 29 | Name: right_wrist_pitch_link | Mass: 0.48405 kg
             ID: 30 | Name: right_wrist_yaw_link | Mass: 0.254576 kg
             ==============================
-            */
-
-            /* default joint stiffness of each joint
-            [40.1792, 40.1792, 40.1792, 99.0984, 99.0984, 28.5012, 40.1792, 40.1792,
-                28.5012, 99.0984, 99.0984, 14.2506, 14.2506, 28.5012, 28.5012, 14.2506,
-                14.2506, 28.5012, 28.5012, 14.2506, 14.2506, 14.2506, 14.2506, 14.2506,
-                14.2506, 16.7783, 16.7783, 16.7783, 16.7783]
-            */
-
-            /* default joint damping of each joint
-            [2.5579, 2.5579, 2.5579, 6.3088, 6.3088, 1.8144, 2.5579, 2.5579, 1.8144,
-                6.3088, 6.3088, 0.9072, 0.9072, 1.8144, 1.8144, 0.9072, 0.9072, 1.8144,
-                1.8144, 0.9072, 0.9072, 0.9072, 0.9072, 0.9072, 0.9072, 1.0681, 1.0681,
-                1.0681, 1.0681]
             */
 
             /* friction in simulation is
@@ -609,84 +579,8 @@ void RL::InitRL(std::string robot_config_path)
             "right_wrist_yaw_joint"
         ]
         */
-        default_joint_pos.assign(29, 0.0);
-        default_joint_pos[0] = -0.312;
-        default_joint_pos[6] = -0.312;
-        default_joint_pos[3] = 0.669;
-        default_joint_pos[9] = 0.669;
-        default_joint_pos[4] = -0.363;
-        default_joint_pos[10] = -0.363;
-        default_joint_pos[18] = 0.6;
-        default_joint_pos[25] = 0.6;
-        default_joint_pos[16] = 0.2;
-        default_joint_pos[15] = 0.2;
-        default_joint_pos[23] = -0.2;
-        default_joint_pos[22] = 0.2;
 
         cur_joint_vel.assign(29, 0.0);
-
-        default_kp.assign(29, 0.0);
-        default_kd.assign(29, 0.0);
-        
-        default_kp[0] = 40.1792;
-        default_kp[1] = 40.1792;
-        default_kp[2] = 40.1792;
-        default_kp[3] = 99.0984;
-        default_kp[4] = 99.0984;
-        default_kp[5] = 28.5012;
-        default_kp[6] = 40.1792;
-        default_kp[7] = 40.1792;
-        default_kp[8] = 28.5012;
-        default_kp[9] = 99.0984;
-        default_kp[10] = 99.0984;
-        default_kp[11] = 14.2506;
-        default_kp[12] = 14.2506;
-        default_kp[13] = 28.5012;
-        default_kp[14] = 28.5012;
-        default_kp[15] = 14.2506;
-        default_kp[16] = 14.2506;
-        default_kp[17] = 28.5012;
-        default_kp[18] = 28.5012;
-        default_kp[19] = 14.2506;
-        default_kp[20] = 14.2506;
-        default_kp[21] = 14.2506;
-        default_kp[22] = 14.2506;
-        default_kp[23] = 14.2506;
-        default_kp[24] = 14.2506;
-        default_kp[25] = 16.7783;
-        default_kp[26] = 16.7783;
-        default_kp[27] = 16.7783;
-        default_kp[28] = 16.7783;
-
-        default_kd[0] = 2.5579;
-        default_kd[1] = 2.5579;
-        default_kd[2] = 2.5579;
-        default_kd[3] = 6.3088;
-        default_kd[4] = 6.3088;
-        default_kd[5] = 1.8144;
-        default_kd[6] = 2.5579;
-        default_kd[7] = 2.5579;
-        default_kd[8] = 1.8144;
-        default_kd[9] = 6.3088;
-        default_kd[10] = 6.3088;
-        default_kd[11] = 0.9072;
-        default_kd[12] = 0.9072;
-        default_kd[13] = 1.8144;
-        default_kd[14] = 1.8144;
-        default_kd[15] = 0.9072;
-        default_kd[16] = 0.9072;
-        default_kd[17] = 1.8144;
-        default_kd[18] = 1.8144;
-        default_kd[19] = 0.9072;
-        default_kd[20] = 0.9072;
-        default_kd[21] = 0.9072;
-        default_kd[22] = 0.9072;
-        default_kd[23] = 0.9072;
-        default_kd[24] = 0.9072;
-        default_kd[25] = 1.0681;
-        default_kd[26] = 1.0681;
-        default_kd[27] = 1.0681;
-        default_kd[28] = 1.0681;
 
         cur_kp.assign(29, 0.0);
         cur_kd.assign(29, 0.0);
@@ -726,27 +620,18 @@ void RL::ComputeOutput(const std::vector<float> &actions, std::vector<float> &ou
         pos_actions_scaled[i] = 0.0f;
         vel_actions_scaled[i] = actions_scaled[i];
     }
-    /*
-    std::cout << "============" << std::endl;
-    std::cout << pos_actions_scaled << std::endl;
-    std::cout << "------------" << std::endl;
-    std::cout << vel_actions_scaled << std::endl;
-    */
+    
     std::vector<float> all_actions_scaled = pos_actions_scaled + vel_actions_scaled;
     output_dof_pos = pos_actions_scaled + this->params.Get<std::vector<float>>("default_dof_pos");
-    /*
-    std::cout << "***********" << std::endl;
-    std::cout << this->params.Get<std::vector<float>>("default_dof_pos") << std::endl;
-    std::cout << "^^^^^^^^^^^" << std::endl;
-    std::cout << output_dof_pos << std::endl;
-    */
+    
     output_dof_vel = vel_actions_scaled;
-    output_dof_tau = this->params.Get<std::vector<float>>("rl_kp") * (all_actions_scaled + this->params.Get<std::vector<float>>("default_dof_pos") - this->obs.dof_pos) - this->params.Get<std::vector<float>>("rl_kd") * this->obs.dof_vel;
-    /*
-    std::cout << "$$$$$$$$$$$$" << std::endl;
-    std::cout << output_dof_tau << std::endl;
-    */
+    output_dof_tau = this->params.Get<std::vector<float>>("rl_kp") * 
+        (all_actions_scaled + this->params.Get<std::vector<float>>("default_dof_pos") - this->obs.dof_pos) - 
+        this->params.Get<std::vector<float>>("rl_kd") * this->obs.dof_vel;
+    
     output_dof_tau = clamp(output_dof_tau, -this->params.Get<std::vector<float>>("torque_limits"), this->params.Get<std::vector<float>>("torque_limits"));
+
+    
 }
 
 int RL::InverseJointMapping(int idx) const

@@ -36,6 +36,8 @@ public:
 
     float GetDuration() const { return duration_; }
 
+    std::vector<float> Lerp(const std::vector<float>& p0, const std::vector<float>& p1, float t) const;
+
     std::vector<float> Slerp(const std::vector<float>& q0, const std::vector<float>& q1, float t) const;
 
     void Reset(const std::vector<float>& robot_base_quat, const std::vector<float>& robot_waist_angles);

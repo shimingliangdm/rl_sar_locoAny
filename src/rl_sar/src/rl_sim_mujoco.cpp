@@ -228,11 +228,18 @@ void RL_Sim::GetState(RobotState<float> *state)
             q_pin[6] = mj_data->qpos[3];
 
             int base_offset = 7;
+            auto joint_mapping = this->params.Get<std::vector<int>>("joint_mapping");
+            /*joint_mapping: [0, 6, 12, 1, 7, 13, 2, 8, 14, 
+                3, 9, 15, 22, 4, 10, 16, 23, 5, 11, 17, 24, 
+                18, 25, 19, 26, 20, 27, 21, 28]*/
             for (int i = 0; i < this->params.Get<int>("num_of_dofs"); ++i)
             {
-                if (base_offset + i < q_pin.size()) {
-                    q_pin[base_offset + i] = state->motor_state.q[i];
+                int pinocchio_index = base_offset + joint_mapping[i];
+                if (pinocchio_index < q_pin.size())
+                {
+                    q_pin[pinocchio_index] = state->motor_state.q[i];
                 }
+
             }
 
             // size of q_pin is 29
@@ -248,6 +255,7 @@ void RL_Sim::GetState(RobotState<float> *state)
 
             // here is the name of each joint
             /******
+            [0, 6, 12, 1, 7, 13, 2, 8, 14, 3, 9, 15, 22, 4, 10, 16, 23, 5, 11, 17, 24, 18, 25, 19, 26, 20, 27, 21, 28]
             Index: 0 | Name: universe
             Index: 1 | Name: root_joint
             Index: 2 | Name: left_hip_pitch_joint
@@ -281,14 +289,10 @@ void RL_Sim::GetState(RobotState<float> *state)
             Index: 30 | Name: right_wrist_yaw_joint
             */
 
-            pinocchio::SE3 world_M_root;
-            for (pinocchio::JointIndex joint_id = 1; joint_id < model_pin.joints.size(); ++joint_id)
+            pinocchio::SE3 world_M_root = data_pin.oMi[15];
+            for (pinocchio::JointIndex joint_id = 2; joint_id < model_pin.joints.size(); ++joint_id)
             {
                 const auto & world_transform = data_pin.oMi[joint_id];
-                if (joint_id == 1)
-                {
-                    world_M_root = data_pin.oMi[joint_id];
-                }
 
                 pinocchio::SE3 local_joint_transform = world_M_root.inverse() * world_transform;
 
@@ -306,7 +310,7 @@ void RL_Sim::GetState(RobotState<float> *state)
                 Eigen::Vector3d local_linear_vel = v_in_root_frame.linear();
                 Eigen::Vector3d local_angular_vel = v_in_root_frame.angular();
 
-                if (joint_id == 1)
+                if (joint_id == 15)
                 {
                     root_world_joint_translation[0] = world_translation.x();
                     root_world_joint_translation[1] = world_translation.y();
