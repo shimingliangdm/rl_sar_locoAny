@@ -274,69 +274,64 @@ std::vector<float> RL::ComputeObservation()
         }
         else if (observation == "lafan_motion_anchor_pos_b")
         {
-            std::vector<float> root_pos_in_robot_frame_vec(3, 0.0);
-            if (this->video_mimic_motion_loader)
+            std::vector<float> obs_vec(3, 0.0f);
+            Eigen::VectorXd q_pin = Eigen::VectorXd::Zero(model_pin.nq);
+            // dof_pos is in order of IsaacLab
+            q_pin[0] = this->obs.real_root_pos_x;
+            q_pin[1] = this->obs.real_root_pos_y;
+            q_pin[2] = this->obs.real_root_pos_z;
+
+            q_pin[3] = this->obs.real_root_quat_x;
+            q_pin[4] = this->obs.real_root_quat_y;
+            q_pin[5] = this->obs.real_root_quat_z;
+            q_pin[6] = this->obs.real_root_quat_w;
+
+            auto joint_mapping = this->params.Get<std::vector<int>>("joint_mapping");
+            for (int i = 0; i < joint_mapping.size(); ++i)
             {
-                std::vector<float> ref_root_pos_w = video_mimic_motion_loader->GetRootPos();
-                std::vector<float> ref_root_quat_w = video_mimic_motion_loader->GetRootQuat();
-
-                std::vector<float> real_root_pos_w = root_world_joint_translation;
-                // wxyz
-                std::vector<float> real_root_quat_w = root_world_joint_quat;
-
-                Eigen::Vector3d p_ref(ref_root_pos_w[0], ref_root_pos_w[1], ref_root_pos_w[2]);
-                Eigen::Quaterniond q_ref(ref_root_quat_w[0], ref_root_quat_w[1], ref_root_quat_w[2], ref_root_quat_w[3]); // w, x, y, z
-                
-                Eigen::Vector3d p_real(real_root_pos_w[0], real_root_pos_w[1], real_root_pos_w[2]);
-                Eigen::Quaterniond q_real(real_root_quat_w[0], real_root_quat_w[1], real_root_quat_w[2], real_root_quat_w[3]); // w, x, y, z
-
-                q_ref.normalize();
-                q_real.normalize();
-
-                Eigen::Vector3d pos_in_robot_frame = q_real.inverse() * (p_ref - p_real);
-
-                root_pos_in_robot_frame_vec[0] = pos_in_robot_frame.x();
-                root_pos_in_robot_frame_vec[1] = pos_in_robot_frame.y();
-                root_pos_in_robot_frame_vec[2] = pos_in_robot_frame.z();
+                q_pin[7 + joint_mapping[i]] = this->obs.dof_pos[7 + joint_mapping[i]];
             }
-            obs_list.push_back(root_pos_in_robot_frame_vec);
+            pinocchio::forwardKinematics(model_pin, data_pin, q_pin);
+            pinocchio::updateFramePlacements(model_pin, data_pin);
+            int pelvis_id = model_pin.getFrameId("pelvis");
+
+            Eigen::Vector3d real_root_pos_w = data_pin.oMf[pelvis_id].translation();
+            Eigen::Matrix3d real_root_rot_w = data_pin.oMf[pelvis_id].rotation();
+            Eigen::Quaterniond q_real(real_root_rot_w);
+
+            std::vector<float> ref_root_pos_w = this->video_mimic_motion_loader->GetRootPos();
+            Eigen::Vector3d p_ref_w(ref_root_pos_w[0], ref_root_pos_w[1], ref_root_pos_w[2]);
+
+            Eigen::Vector3d pos_in_robot_frame = q_real.inverse() * (p_ref_w - real_root_pos_w);
+            obs_vec[0] = (float)pos_in_robot_frame.x();
+            obs_vec[1] = (float)pos_in_robot_frame.y();
+            obs_vec[2] = (float)pos_in_robot_frame.z();
+
+            obs_list.push_back(obs_vec);
         }
         else if (observation == "lafan_motion_anchor_ori_b")
         {
-            std::vector<float> root_quat_in_robot_frame_vec;
+            std::vector<float> anchor_ori(6, 0.0f);
             if (this->video_mimic_motion_loader)
             {
-                std::vector<float> ref_root_pos_w = video_mimic_motion_loader->GetRootPos();
-                std::vector<float> ref_root_quat_w = video_mimic_motion_loader->GetRootQuat();
-
-                std::vector<float> real_root_pos_w = root_world_joint_translation;
-                // wxyz
-                std::vector<float> real_root_quat_w = root_world_joint_quat;
-
-                Eigen::Vector3d p_ref(ref_root_pos_w[0], ref_root_pos_w[1], ref_root_pos_w[2]);
-                Eigen::Quaterniond q_ref(ref_root_quat_w[0], ref_root_quat_w[1], ref_root_quat_w[2], ref_root_quat_w[3]); // w, x, y, z
                 
-                Eigen::Vector3d p_real(real_root_pos_w[0], real_root_pos_w[1], real_root_pos_w[2]);
-                Eigen::Quaterniond q_real(real_root_quat_w[0], real_root_quat_w[1], real_root_quat_w[2], real_root_quat_w[3]); // w, x, y, z
-
-                q_ref.normalize();
-                q_real.normalize();
-
-                Eigen::Quaterniond quat_in_robot_frame = q_real.inverse() * q_ref;
-                
-                // we take first 2 columns of the rotation matrix
-                Eigen::Matrix3d mat = quat_in_robot_frame.toRotationMatrix();
-                for (int i=0; i<3; i++)
-                {
-                    root_quat_in_robot_frame_vec.push_back(mat(i, 0));
-                    root_quat_in_robot_frame_vec.push_back(mat(i, 1));
-                }
+                auto waist_sdk_indices = this->params.Get<std::vector<int>>("waist_joint_indices");
+                std::vector<float> waist_angles = {
+                    this->obs.dof_pos[InverseJointMapping(waist_sdk_indices[0])],
+                    this->obs.dof_pos[InverseJointMapping(waist_sdk_indices[1])],
+                    this->obs.dof_pos[InverseJointMapping(waist_sdk_indices[2])]
+                };
+                std::vector<float> robot_torso_quat_w = VideoMimicMotionLoader::ComputeTorsoQuat(this->obs.base_quat, waist_angles);
+                std::vector<float> ref_torso_quat_w = this->video_mimic_motion_loader->GetAnchorQuat();
+                std::vector<float> init_quat = this->video_mimic_motion_loader->GetInitQuat();
+                std::vector<float> motion_anchor_quat_w = QuaternionMultiply(init_quat, ref_torso_quat_w);
+                std::vector<float> robot_quat_inv = QuaternionConjugate(robot_torso_quat_w);
+                std::vector<float> relative_quat = QuaternionMultiply(robot_quat_inv, motion_anchor_quat_w);
+                std::vector<float> rot_matrix = QuaternionToRotationMatrix(relative_quat);
+                anchor_ori = MatrixFirstTwoColumns(rot_matrix);
             }
-            else
-            {
-                root_quat_in_robot_frame_vec = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            }
-            obs_list.push_back(root_quat_in_robot_frame_vec);
+
+            obs_list.push_back(anchor_ori);
         }
         else if (observation == "lafan_joint_pos_history")
         {
@@ -344,6 +339,29 @@ std::vector<float> RL::ComputeObservation()
             // length of JointPosHistory is 167 !!!
 
             std::vector<float> joint_pos_history;
+
+
+            q_pin[0] = this->obs.real_root_pos_x;
+            q_pin[1] = this->obs.real_root_pos_y;
+            q_pin[2] = this->obs.real_root_pos_z;
+
+            q_pin[3] = this->obs.real_root_quat_x;
+            q_pin[4] = this->obs.real_root_quat_y;
+            q_pin[5] = this->obs.real_root_quat_z;
+            q_pin[6] = this->obs.real_root_quat_w;
+
+            auto joint_mapping = this->params.Get<std::vector<int>>("joint_mapping");
+            for (int i = 0; i < joint_mapping.size(); ++i)
+            {
+                q_pin[7 + joint_mapping[i]] = this->obs.dof_pos[7 + joint_mapping[i]];
+            }
+            pinocchio::forwardKinematics(model_pin, data_pin, q_pin);
+            pinocchio::updateFramePlacements(model_pin, data_pin);
+            int pelvis_id = model_pin.getFrameId("pelvis");
+
+
+
+
             std::vector<float> noise_lin_vel_b = ApplyNoise(root_local_joint_lin_vel, noise_lin_vel_b_min, noise_lin_vel_b_max);
             joint_pos_history.insert(joint_pos_history.end(), noise_lin_vel_b.begin(), noise_lin_vel_b.end());
 
@@ -351,10 +369,15 @@ std::vector<float> RL::ComputeObservation()
             joint_pos_history.insert(joint_pos_history.end(), noise_ang_vel_b.begin(), noise_ang_vel_b.end());
 
             std::vector<float> joint_pos_rels;
+
+
+            std::vector<float> dof_pos_rel = (this->obs.dof_pos - this->params.Get<std::vector<float>>("default_dof_pos")) * 
+                this->params.Get<float>("dof_pos_scale");
+
+
             for (int i=0; i<29; i++)
             {
-                float joint_pos_rel = cur_joint_pos[i] - this->params.Get<std::vector<float>>("default_dof_pos")[i];
-                joint_pos_rels.push_back(joint_pos_rel);
+                joint_pos_rels.push_back(dof_pos_rel[i]);
             }
             std::vector<float> noise_joint_pos_rel = ApplyNoise(joint_pos_rels, noise_joint_pos_min, noise_joint_pos_max);
             joint_pos_history.insert(joint_pos_history.end(), noise_joint_pos_rel.begin(), noise_joint_pos_rel.end());
@@ -472,10 +495,14 @@ void RL::InitObservations()
     this->obs.actions.clear();
     this->obs.actions.resize(this->params.Get<int>("num_of_dofs"), 0.0f);
 
+    this->obs.real_root_pos.resize(3);
+    this->obs.last_real_root_pos.resize(3);
+    this->obs.real_root_quat.resize(4);
+    this->obs.real_lin_vel.resize(3);
+    this->obs.real_ang_vel.resize(3);
+
     // for lafan motion mimic
     this->obs.lafan_motion_command.assign(67, 0.0);
-    this->obs.lafan_motion_anchor_pos_b.assign(3, 0.0);
-    this->obs.lafan_motion_anchor_ori_b.assign(6, 0.0);
     this->obs.lafan_joint_pos_history.assign(167, 0.0);
 
     this->ComputeObservation();
@@ -504,6 +531,12 @@ void RL::InitJointNum(size_t num_joints)
     this->start_state.motor_state.resize(num_joints);
     this->now_state.motor_state.resize(num_joints);
     this->robot_command.motor_command.resize(num_joints);
+
+    this->robot_state.real_root_pos.resize(3);
+    this->robot_state.last_real_root_pos.resize(3);
+    this->robot_state.real_root_quat.resize(4);
+    this->robot_state.real_lin_vel.resize(3);
+    this->robot_state.real_ang_vel.resize(3);
 }
 
 void RL::InitRL(std::string robot_config_path)
@@ -532,7 +565,6 @@ void RL::InitRL(std::string robot_config_path)
         root_local_joint_lin_vel = {0.0, 0.0, 0.0};
         root_local_joint_ang_vel = {0.0, 0.0, 0.0};
 
-        cur_joint_pos.assign(29, 0.0);
         /*
         joint_pos={
             ".*_hip_pitch_joint": -0.312,
@@ -581,9 +613,6 @@ void RL::InitRL(std::string robot_config_path)
         */
 
         cur_joint_vel.assign(29, 0.0);
-
-        cur_kp.assign(29, 0.0);
-        cur_kd.assign(29, 0.0);
 
         pinocchio_initialized = true;
     }

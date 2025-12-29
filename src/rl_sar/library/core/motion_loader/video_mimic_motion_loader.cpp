@@ -90,6 +90,7 @@ void VideoMimicMotionLoader::LoadVideoMimicCSV(const std::string& filename)
     size_t joint_nb = joint_poses_array.shape[1];
 
     size_t body_nb = body_pos_w_array.shape[1];
+    
 
     // target body names
     // ['pelvis', 'left_hip_roll_link', 'left_knee_link', 'left_ankle_roll_link', 'right_hip_roll_link', 
@@ -99,12 +100,7 @@ void VideoMimicMotionLoader::LoadVideoMimicCSV(const std::string& filename)
     // corresponding body idx
     // [ 0,  4, 10, 18,  5, 11, 19,  9, 16, 22, 28, 17, 23, 29]
 
-    // anchor body name: torso_link
-
-    // anchor body idx: 9
-
     std::vector<int> target_body_idx = {0,  4, 10, 18,  5, 11, 19,  9, 16, 22, 28, 17, 23, 29};
-    int anchor_body_idx = 0;
     for (int i=0; i<frame_nb; i++)
     {
         std::vector<float> frame_joint_pos;
@@ -117,49 +113,20 @@ void VideoMimicMotionLoader::LoadVideoMimicCSV(const std::string& filename)
             frame_joint_vel.push_back(joint_vel);
         }
 
-        std::vector<math_struct::Position<float>> frame_body_positions;
-        std::vector<math_struct::Quat<float>> frame_body_quats;
-        for (int j=0; j<body_nb; j++)
-        {
-            auto found = find(target_body_idx.begin(), target_body_idx.end(), j);
-            if (found != target_body_idx.end())
-            {
-                // which means this is one of the target body
-                float x = body_pos_w[(i*body_nb + j)*3];
-                float y = body_pos_w[(i*body_nb + j)*3 + 1];
-                float z = body_pos_w[(i*body_nb + j)*3 + 2];
+        float root_body_pos_w_x = body_pos_w[i*body_nb*3];
+        float root_body_pos_w_y = body_pos_w[i*body_nb*3 + 1];
+        float root_body_pos_w_z = body_pos_w[i*body_nb*3 + 2];
 
-                // quat should be in sequence of wxyz
-                float quat_w = body_quat_w[(i*body_nb + j)*4];
-                float quat_x = body_quat_w[(i*body_nb + j)*4 + 1];
-                float quat_y = body_quat_w[(i*body_nb + j)*4 + 2];
-                float quat_z = body_quat_w[(i*body_nb + j)*4 + 3];
+        float root_body_quat_w_w = body_quat_w[(i*body_nb + j)*4];
+        float root_body_quat_w_x = body_quat_w[(i*body_nb + j)*4 + 1];
+        float root_body_quat_w_y = body_quat_w[(i*body_nb + j)*4 + 2];
+        float root_body_quat_w_z = body_quat_w[(i*body_nb + j)*4 + 3];
 
-                math_struct::Position<float> position(x, y, z);
-                math_struct::Quat<float> quat(quat_x, quat_y, quat_z, quat_w);
-                frame_body_positions.push_back(position);
-                frame_body_quats.push_back(quat);
-
-                if (j == anchor_body_idx)
-                {                    
-                    // which means this is anchor body
-                    std::vector<float> anchor_pos;
-                    anchor_pos.push_back(x);
-                    anchor_pos.push_back(y);
-                    anchor_pos.push_back(z);
-
-                    std::vector<float> anchor_quat;
-                    anchor_quat.push_back(quat_w);
-                    anchor_quat.push_back(quat_x);
-                    anchor_quat.push_back(quat_y);
-                    anchor_quat.push_back(quat_z);
-                    
-                    root_positions_.push_back(anchor_pos);
-                    root_quaternions_.push_back(anchor_quat);
-                }
-            }
-            
-        }
+        std::vector<float> root_body_pos_w = {root_body_pos_w_x, root_body_pos_w_y, root_body_pos_w_z};
+        std::vector<float> root_body_quat_w = {root_body_quat_w_w, root_body_quat_w_x, root_body_quat_w_y, root_body_quat_w_z};
+        
+        root_positions_.push_back(root_body_pos_w);
+        root_quaternions_.push_back(root_body_quat_w);
         joint_positions_.push_back(frame_joint_pos);
         joint_velocities_.push_back(frame_joint_vel);
     }
@@ -254,8 +221,8 @@ std::vector<float> VideoMimicMotionLoader::ComputeYawAlignment(const std::vector
 
 std::vector<float> VideoMimicMotionLoader::GetRootPos() const
 {
-    std::vector<float> anchor_pos = Lerp(root_positions_[index_0_], root_positions_[index_1_], blend_);
-    return anchor_pos;
+    std::vector<float> lerp_root_pos = Lerp(root_positions_[index_0_], root_positions_[index_1_], blend_);
+    return lerp_root_pos;
 }
 
 std::vector<float> VideoMimicMotionLoader::GetFutureRootPos() const

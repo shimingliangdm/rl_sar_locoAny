@@ -167,209 +167,46 @@ void RL_Sim::GetState(RobotState<float> *state)
         state->imu.gyroscope[1] = mj_data->sensordata[3 * this->params.Get<int>("num_of_dofs") + 5];
         state->imu.gyroscope[2] = mj_data->sensordata[3 * this->params.Get<int>("num_of_dofs") + 6];
 
-
-        float w = state->imu.quaternion[0];
-        float x = state->imu.quaternion[1];
-        float y = state->imu.quaternion[2];
-        float z = state->imu.quaternion[3];
-
-        float t0 = 2.0 * (w * x + y * z);
-        float t1 = 1.0 - 2.0 * (x * x + y * y);
-        float roll = std::atan2(t0, t1);
-
-        float t2 = 2.0 * (w * y - z * x);
-        if (t2 < -0.1)
-        {
-            t2 = -1.0;
-        }
-        else if (t2 > 1.0)
-        {
-            t2 = 1.0;
-        }
-        float pitch = std::asin(t2);
-
-        auto wrap_to_pi = [](float angle) {
-            while (angle > M_PI) angle -= 2.0 * M_PI;
-            while (angle < -M_PI) angle += 2.0 * M_PI;
-            return angle;
-        };
-        
-        float final_roll = wrap_to_pi(roll);
-        float final_pitch = wrap_to_pi(pitch);
-        
-        cur_imu = {final_roll, final_pitch};
-
-
         for (int i = 0; i < this->params.Get<int>("num_of_dofs"); ++i)
         {
             state->motor_state.q[i] = mj_data->sensordata[this->params.Get<std::vector<int>>("joint_mapping")[i]];
             state->motor_state.dq[i] = mj_data->sensordata[this->params.Get<std::vector<int>>("joint_mapping")[i] + this->params.Get<int>("num_of_dofs")];
             state->motor_state.tau_est[i] = mj_data->sensordata[this->params.Get<std::vector<int>>("joint_mapping")[i] + 2 * this->params.Get<int>("num_of_dofs")];
-            if (cur_joint_pos.size() == 0)
-            {
-                cur_joint_pos.assign(29, 0.0);
-            }
-            cur_joint_pos[i] = state->motor_state.q[i];
         }
 
 
         
-        if (model_pin.nq > 0)
+
+        if (!state->is_init)
         {
-            Eigen::VectorXd q_pin = Eigen::VectorXd::Zero(model_pin.nq);
-
-            q_pin[0] = mj_data->qpos[0];
-            q_pin[1] = mj_data->qpos[1];
-            q_pin[2] = mj_data->qpos[2];
-
-            q_pin[3] = mj_data->qpos[4];
-            q_pin[4] = mj_data->qpos[5];
-            q_pin[5] = mj_data->qpos[6];
-            q_pin[6] = mj_data->qpos[3];
-
-            int base_offset = 7;
-            auto joint_mapping = this->params.Get<std::vector<int>>("joint_mapping");
-            /*joint_mapping: [0, 6, 12, 1, 7, 13, 2, 8, 14, 
-                3, 9, 15, 22, 4, 10, 16, 23, 5, 11, 17, 24, 
-                18, 25, 19, 26, 20, 27, 21, 28]*/
-            for (int i = 0; i < this->params.Get<int>("num_of_dofs"); ++i)
-            {
-                int pinocchio_index = base_offset + joint_mapping[i];
-                if (pinocchio_index < q_pin.size())
-                {
-                    q_pin[pinocchio_index] = state->motor_state.q[i];
-                }
-
-            }
-
-            // size of q_pin is 29
-            // after reading motion.npz, size of q_pin is 58
-            pinocchio::forwardKinematics(model_pin, data_pin, q_pin);
-
-            mjv_updateScene(sim->m_, sim->d_, &sim->opt, &sim->pert, &sim->cam, mjCAT_ALL, &sim->scn);
-            
-            sim->geoms_.clear();
-            mjtNum geom_size[3] = {0.05, 0.0, 0.0};
-            float geom_color[4] = {1.0, 0.0, 0.0, 1.0};
-            float geom_green_color[4] = {0.0, 1.0, 0.0, 1.0};
-
-            // here is the name of each joint
-            /******
-            [0, 6, 12, 1, 7, 13, 2, 8, 14, 3, 9, 15, 22, 4, 10, 16, 23, 5, 11, 17, 24, 18, 25, 19, 26, 20, 27, 21, 28]
-            Index: 0 | Name: universe
-            Index: 1 | Name: root_joint
-            Index: 2 | Name: left_hip_pitch_joint
-            Index: 3 | Name: left_hip_roll_joint
-            Index: 4 | Name: left_hip_yaw_joint
-            Index: 5 | Name: left_knee_joint
-            Index: 6 | Name: left_ankle_pitch_joint
-            Index: 7 | Name: left_ankle_roll_joint
-            Index: 8 | Name: right_hip_pitch_joint
-            Index: 9 | Name: right_hip_roll_joint
-            Index: 10 | Name: right_hip_yaw_joint
-            Index: 11 | Name: right_knee_joint
-            Index: 12 | Name: right_ankle_pitch_joint
-            Index: 13 | Name: right_ankle_roll_joint
-            Index: 14 | Name: waist_yaw_joint
-            Index: 15 | Name: waist_roll_joint
-            Index: 16 | Name: waist_pitch_joint
-            Index: 17 | Name: left_shoulder_pitch_joint
-            Index: 18 | Name: left_shoulder_roll_joint
-            Index: 19 | Name: left_shoulder_yaw_joint
-            Index: 20 | Name: left_elbow_joint
-            Index: 21 | Name: left_wrist_roll_joint
-            Index: 22 | Name: left_wrist_pitch_joint
-            Index: 23 | Name: left_wrist_yaw_joint
-            Index: 24 | Name: right_shoulder_pitch_joint
-            Index: 25 | Name: right_shoulder_roll_joint
-            Index: 26 | Name: right_shoulder_yaw_joint
-            Index: 27 | Name: right_elbow_joint
-            Index: 28 | Name: right_wrist_roll_joint
-            Index: 29 | Name: right_wrist_pitch_joint
-            Index: 30 | Name: right_wrist_yaw_joint
-            */
-
-            pinocchio::SE3 world_M_root = data_pin.oMi[15];
-            for (pinocchio::JointIndex joint_id = 2; joint_id < model_pin.joints.size(); ++joint_id)
-            {
-                const auto & world_transform = data_pin.oMi[joint_id];
-
-                pinocchio::SE3 local_joint_transform = world_M_root.inverse() * world_transform;
-
-                Eigen::Vector3d world_translation = world_transform.translation();
-                Eigen::Quaterniond world_quat(world_transform.rotation());
-                Eigen::Vector3d local_translation = local_joint_transform.translation();
-                Eigen::Quaterniond local_quat(local_joint_transform.rotation());
-
-                pinocchio::Motion v_local = data_pin.v[joint_id];
-                pinocchio::Motion v_joint = data_pin.oMi[joint_id].act(v_local);
-                pinocchio::Motion v_in_root_frame = local_joint_transform.act(v_local);
-
-                Eigen::Vector3d world_linear_vel = v_joint.linear();
-                Eigen::Vector3d world_angular_vel = v_joint.angular();
-                Eigen::Vector3d local_linear_vel = v_in_root_frame.linear();
-                Eigen::Vector3d local_angular_vel = v_in_root_frame.angular();
-
-                if (joint_id == 15)
-                {
-                    root_world_joint_translation[0] = world_translation.x();
-                    root_world_joint_translation[1] = world_translation.y();
-                    root_world_joint_translation[2] = world_translation.z();
-
-                    root_world_joint_quat[0] = world_quat.w();
-                    root_world_joint_quat[1] = world_quat.x();
-                    root_world_joint_quat[2] = world_quat.y();
-                    root_world_joint_quat[3] = world_quat.z();
-
-                    root_world_joint_lin_vel[0] = world_linear_vel.x();
-                    root_world_joint_lin_vel[1] = world_linear_vel.y();
-                    root_world_joint_lin_vel[2] = world_linear_vel.z();
-
-                    root_world_joint_ang_vel[0] = world_angular_vel.x();
-                    root_world_joint_ang_vel[1] = world_angular_vel.y();
-                    root_world_joint_ang_vel[2] = world_angular_vel.z();
-
-
-                    root_local_joint_translation[0] = local_translation.x();
-                    root_local_joint_translation[1] = local_translation.y();
-                    root_local_joint_translation[2] = local_translation.z();
-
-                    root_local_joint_quat[0] = local_quat.w();
-                    root_local_joint_quat[1] = local_quat.x();
-                    root_local_joint_quat[2] = local_quat.y();
-                    root_local_joint_quat[3] = local_quat.z();
-
-                    root_local_joint_lin_vel[0] = local_linear_vel.x();
-                    root_local_joint_lin_vel[1] = local_linear_vel.y();
-                    root_local_joint_lin_vel[2] = local_linear_vel.z();
-
-                    root_local_joint_ang_vel[0] = local_angular_vel.x();
-                    root_local_joint_ang_vel[1] = local_angular_vel.y();
-                    root_local_joint_ang_vel[2] = local_angular_vel.z();
-                }
-
-                mjtNum geom_pos[3];
-                geom_pos[0] = world_translation.x();
-                geom_pos[1] = world_translation.y();
-                geom_pos[2] = world_translation.z();
-
-
-                sim->geoms_.push_back({});
-                auto & geom = sim->geoms_.back();
-                mjv_initGeom(&geom, mjGEOM_SPHERE, geom_size, geom_pos, NULL, geom_color);
-
-
-                mjtNum geom_local_pos[3];
-                geom_local_pos[0] = local_translation.x();
-                geom_local_pos[1] = local_translation.y();
-                geom_local_pos[2] = local_translation.z();
-
-                sim->geoms_.push_back({});
-                auto & local_geom = sim->geoms_.back();
-                mjv_initGeom(&local_geom, mjGEOM_SPHERE, geom_size, geom_local_pos, NULL, geom_green_color);
-            }
+            state->last_real_root_pos[0] = mj_data->qpos[0];
+            state->last_real_root_pos[1] = mj_data->qpos[1];
+            state->last_real_root_pos[2] = mj_data->qpos[2];
         }
-        
+        else
+        {
+            state->last_real_root_pos[0] = state->real_root_pos[0];
+            state->last_real_root_pos[1] = state->real_root_pos[1];
+            state->last_real_root_pos[2] = state->real_root_pos[2];
+        }
+        state->real_root_pos[0] = mj_data->qpos[0];
+        state->real_root_pos[1] = mj_data->qpos[1];
+        state->real_root_pos[2] = mj_data->qpos[2];
+
+        state->real_root_quat[0] = mj_data->qpos[4];
+        state->real_root_quat[1] = mj_data->qpos[5];
+        state->real_root_quat[2] = mj_data->qpos[6];
+        state->real_root_quat[3] = mj_data->qpos[3];
+
+        float offset_x = state->real_root_pos[0] - state->last_real_root_pos[0];
+        float offset_y = state->real_root_pos[1] - state->last_real_root_pos[1];
+        float offset_z = state->real_root_pos[2] - state->last_real_root_pos[2];
+
+        state->real_lin_vel[0] = offset_x / this->params.Get<float>("dt");
+        state->real_lin_vel[1] = offset_y / this->params.Get<float>("dt");
+        state->real_lin_vel[2] = offset_z / this->params.Get<float>("dt");
+
+        state->is_init = true;
     }
 }
 
@@ -542,6 +379,204 @@ void RL_Sim::RunModel()
         this->obs.base_quat = this->robot_state.imu.quaternion;
         this->obs.dof_pos = this->robot_state.motor_state.q;
         this->obs.dof_vel = this->robot_state.motor_state.dq;
+
+
+
+
+
+
+
+        float w = this->robot_state.imu.quaternion[0];
+        float x = this->robot_state.imu.quaternion[1];
+        float y = this->robot_state.imu.quaternion[2];
+        float z = this->robot_state.imu.quaternion[3];
+
+        float t0 = 2.0 * (w * x + y * z);
+        float t1 = 1.0 - 2.0 * (x * x + y * y);
+        float roll = std::atan2(t0, t1);
+
+        float t2 = 2.0 * (w * y - z * x);
+        if (t2 < -0.1)
+        {
+            t2 = -1.0;
+        }
+        else if (t2 > 1.0)
+        {
+            t2 = 1.0;
+        }
+        float pitch = std::asin(t2);
+
+        auto wrap_to_pi = [](float angle) {
+            while (angle > M_PI) angle -= 2.0 * M_PI;
+            while (angle < -M_PI) angle += 2.0 * M_PI;
+            return angle;
+        };
+        
+        float final_roll = wrap_to_pi(roll);
+        float final_pitch = wrap_to_pi(pitch);
+        
+        cur_imu = {final_roll, final_pitch};
+
+
+
+        if (model_pin.nq > 0)
+        {
+            Eigen::VectorXd q_pin = Eigen::VectorXd::Zero(model_pin.nq);
+
+            q_pin[0] = mj_data->qpos[0];
+            q_pin[1] = mj_data->qpos[1];
+            q_pin[2] = mj_data->qpos[2];
+
+            q_pin[3] = mj_data->qpos[4];
+            q_pin[4] = mj_data->qpos[5];
+            q_pin[5] = mj_data->qpos[6];
+            q_pin[6] = mj_data->qpos[3];
+
+            int base_offset = 7;
+            auto joint_mapping = this->params.Get<std::vector<int>>("joint_mapping");
+            /*joint_mapping: [0, 6, 12, 1, 7, 13, 2, 8, 14, 
+                3, 9, 15, 22, 4, 10, 16, 23, 5, 11, 17, 24, 
+                18, 25, 19, 26, 20, 27, 21, 28]*/
+            for (int i = 0; i < this->params.Get<int>("num_of_dofs"); ++i)
+            {
+                int pinocchio_index = base_offset + joint_mapping[i];
+                if (pinocchio_index < q_pin.size())
+                {
+                    q_pin[pinocchio_index] = this->robot_state.motor_state.q[i];
+                }
+
+            }
+
+            // size of q_pin is 29
+            // after reading motion.npz, size of q_pin is 58
+            pinocchio::forwardKinematics(model_pin, data_pin, q_pin);
+
+            mjv_updateScene(sim->m_, sim->d_, &sim->opt, &sim->pert, &sim->cam, mjCAT_ALL, &sim->scn);
+            
+            sim->geoms_.clear();
+            mjtNum geom_size[3] = {0.05, 0.0, 0.0};
+            float geom_color[4] = {1.0, 0.0, 0.0, 1.0};
+            float geom_green_color[4] = {0.0, 1.0, 0.0, 1.0};
+
+            // here is the name of each joint
+            /******
+            [0, 6, 12, 1, 7, 13, 2, 8, 14, 3, 9, 15, 22, 4, 10, 16, 23, 5, 11, 17, 24, 18, 25, 19, 26, 20, 27, 21, 28]
+            Index: 0 | Name: universe
+            Index: 1 | Name: root_joint
+            Index: 2 | Name: left_hip_pitch_joint
+            Index: 3 | Name: left_hip_roll_joint
+            Index: 4 | Name: left_hip_yaw_joint
+            Index: 5 | Name: left_knee_joint
+            Index: 6 | Name: left_ankle_pitch_joint
+            Index: 7 | Name: left_ankle_roll_joint
+            Index: 8 | Name: right_hip_pitch_joint
+            Index: 9 | Name: right_hip_roll_joint
+            Index: 10 | Name: right_hip_yaw_joint
+            Index: 11 | Name: right_knee_joint
+            Index: 12 | Name: right_ankle_pitch_joint
+            Index: 13 | Name: right_ankle_roll_joint
+            Index: 14 | Name: waist_yaw_joint
+            Index: 15 | Name: waist_roll_joint
+            Index: 16 | Name: waist_pitch_joint
+            Index: 17 | Name: left_shoulder_pitch_joint
+            Index: 18 | Name: left_shoulder_roll_joint
+            Index: 19 | Name: left_shoulder_yaw_joint
+            Index: 20 | Name: left_elbow_joint
+            Index: 21 | Name: left_wrist_roll_joint
+            Index: 22 | Name: left_wrist_pitch_joint
+            Index: 23 | Name: left_wrist_yaw_joint
+            Index: 24 | Name: right_shoulder_pitch_joint
+            Index: 25 | Name: right_shoulder_roll_joint
+            Index: 26 | Name: right_shoulder_yaw_joint
+            Index: 27 | Name: right_elbow_joint
+            Index: 28 | Name: right_wrist_roll_joint
+            Index: 29 | Name: right_wrist_pitch_joint
+            Index: 30 | Name: right_wrist_yaw_joint
+            */
+
+            pinocchio::SE3 world_M_root = data_pin.oMi[15];
+            for (pinocchio::JointIndex joint_id = 2; joint_id < model_pin.joints.size(); ++joint_id)
+            {
+                const auto & world_transform = data_pin.oMi[joint_id];
+
+                pinocchio::SE3 local_joint_transform = world_M_root.inverse() * world_transform;
+
+                Eigen::Vector3d world_translation = world_transform.translation();
+                Eigen::Quaterniond world_quat(world_transform.rotation());
+                Eigen::Vector3d local_translation = local_joint_transform.translation();
+                Eigen::Quaterniond local_quat(local_joint_transform.rotation());
+
+                pinocchio::Motion v_local = data_pin.v[joint_id];
+                pinocchio::Motion v_joint = data_pin.oMi[joint_id].act(v_local);
+                pinocchio::Motion v_in_root_frame = local_joint_transform.act(v_local);
+
+                Eigen::Vector3d world_linear_vel = v_joint.linear();
+                Eigen::Vector3d world_angular_vel = v_joint.angular();
+                Eigen::Vector3d local_linear_vel = v_in_root_frame.linear();
+                Eigen::Vector3d local_angular_vel = v_in_root_frame.angular();
+
+                if (joint_id == 15)
+                {
+                    root_world_joint_translation[0] = world_translation.x();
+                    root_world_joint_translation[1] = world_translation.y();
+                    root_world_joint_translation[2] = world_translation.z();
+
+                    root_world_joint_quat[0] = world_quat.w();
+                    root_world_joint_quat[1] = world_quat.x();
+                    root_world_joint_quat[2] = world_quat.y();
+                    root_world_joint_quat[3] = world_quat.z();
+
+                    root_world_joint_lin_vel[0] = world_linear_vel.x();
+                    root_world_joint_lin_vel[1] = world_linear_vel.y();
+                    root_world_joint_lin_vel[2] = world_linear_vel.z();
+
+                    root_world_joint_ang_vel[0] = world_angular_vel.x();
+                    root_world_joint_ang_vel[1] = world_angular_vel.y();
+                    root_world_joint_ang_vel[2] = world_angular_vel.z();
+
+
+                    root_local_joint_translation[0] = local_translation.x();
+                    root_local_joint_translation[1] = local_translation.y();
+                    root_local_joint_translation[2] = local_translation.z();
+
+                    root_local_joint_quat[0] = local_quat.w();
+                    root_local_joint_quat[1] = local_quat.x();
+                    root_local_joint_quat[2] = local_quat.y();
+                    root_local_joint_quat[3] = local_quat.z();
+
+                    root_local_joint_lin_vel[0] = local_linear_vel.x();
+                    root_local_joint_lin_vel[1] = local_linear_vel.y();
+                    root_local_joint_lin_vel[2] = local_linear_vel.z();
+
+                    root_local_joint_ang_vel[0] = local_angular_vel.x();
+                    root_local_joint_ang_vel[1] = local_angular_vel.y();
+                    root_local_joint_ang_vel[2] = local_angular_vel.z();
+                }
+
+                mjtNum geom_pos[3];
+                geom_pos[0] = world_translation.x();
+                geom_pos[1] = world_translation.y();
+                geom_pos[2] = world_translation.z();
+
+
+                sim->geoms_.push_back({});
+                auto & geom = sim->geoms_.back();
+                mjv_initGeom(&geom, mjGEOM_SPHERE, geom_size, geom_pos, NULL, geom_color);
+
+
+                mjtNum geom_local_pos[3];
+                geom_local_pos[0] = local_translation.x();
+                geom_local_pos[1] = local_translation.y();
+                geom_local_pos[2] = local_translation.z();
+
+                sim->geoms_.push_back({});
+                auto & local_geom = sim->geoms_.back();
+                mjv_initGeom(&local_geom, mjGEOM_SPHERE, geom_size, geom_local_pos, NULL, geom_green_color);
+            }
+        }
+
+
+
 
         this->obs.actions = this->Forward();
         this->ComputeOutput(this->obs.actions, this->output_dof_pos, this->output_dof_vel, this->output_dof_tau);

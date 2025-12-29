@@ -86,6 +86,13 @@ struct RobotState
 
     std::vector<T> kp;
     std::vector<T> kd;
+
+    bool is_init;
+    std::vector<T> real_root_pos;
+    std::vector<T> last_real_root_pos;
+    std::vector<T> real_root_quat;
+    std::vector<T> real_lin_vel;
+    std::vector<T> real_ang_vel;
 };
 
 namespace Input
@@ -190,9 +197,14 @@ struct Observations
     std::vector<T> dof_pos;
     std::vector<T> dof_vel;
     std::vector<T> actions;
+
+    std::vector<T> real_root_pos;
+    std::vector<T> last_real_root_pos;
+    std::vector<T> real_root_quat;
+    std::vector<T> real_lin_vel;
+    std::vector<T> real_ang_vel;
+
     std::vector<T> lafan_motion_command;
-    std::vector<T> lafan_motion_anchor_pos_b;
-    std::vector<T> lafan_motion_anchor_ori_b;
     std::vector<T> lafan_joint_pos_history;
 };
 
@@ -237,10 +249,6 @@ public:
     std::vector<float> root_local_joint_quat;
     std::vector<float> root_local_joint_lin_vel;
     std::vector<float> root_local_joint_ang_vel;
-
-    std::vector<float> cur_joint_pos;
-    std::vector<float> cur_kp;
-    std::vector<float> cur_kd;
 
     std::vector<float> cur_joint_vel;
 

@@ -201,11 +201,6 @@ void RL_Real::GetState(RobotState<float> *state)
         state->motor_state.q[i] = this->unitree_low_state.motor_state()[this->params.Get<std::vector<int>>("joint_mapping")[i]].q();
         state->motor_state.dq[i] = this->unitree_low_state.motor_state()[this->params.Get<std::vector<int>>("joint_mapping")[i]].dq();
         state->motor_state.tau_est[i] = this->unitree_low_state.motor_state()[this->params.Get<std::vector<int>>("joint_mapping")[i]].tau_est();
-        if (cur_joint_pos.size() == 0)
-        {
-            cur_joint_pos.assign(29, 0.0);
-        }
-        cur_joint_pos[i] = state->motor_state.q[i];
     }
 
     
