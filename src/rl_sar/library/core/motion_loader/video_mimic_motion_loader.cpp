@@ -37,7 +37,6 @@ void VideoMimicMotionLoader::Init(const std::string& motion_file)
 
 void VideoMimicMotionLoader::LoadVideoMimicCSV(const std::string& filename)
 {
-    
     cnpy::npz_t npz_data = cnpy::npz_load(filename);
     cnpy::NpyArray joint_poses_array = npz_data["joint_pos"];
     cnpy::NpyArray joint_vels_array = npz_data["joint_vel"];
@@ -97,10 +96,6 @@ void VideoMimicMotionLoader::LoadVideoMimicCSV(const std::string& filename)
     // 'right_knee_link', 'right_ankle_roll_link', 'torso_link', 'left_shoulder_roll_link', 'left_elbow_link', 
     // 'left_wrist_yaw_link', 'right_shoulder_roll_link', 'right_elbow_link', 'right_wrist_yaw_link']
 
-    // corresponding body idx
-    // [ 0,  4, 10, 18,  5, 11, 19,  9, 16, 22, 28, 17, 23, 29]
-
-    std::vector<int> target_body_idx = {0,  4, 10, 18,  5, 11, 19,  9, 16, 22, 28, 17, 23, 29};
     for (int i=0; i<frame_nb; i++)
     {
         std::vector<float> frame_joint_pos;
@@ -117,10 +112,10 @@ void VideoMimicMotionLoader::LoadVideoMimicCSV(const std::string& filename)
         float root_body_pos_w_y = body_pos_w[i*body_nb*3 + 1];
         float root_body_pos_w_z = body_pos_w[i*body_nb*3 + 2];
 
-        float root_body_quat_w_w = body_quat_w[(i*body_nb + j)*4];
-        float root_body_quat_w_x = body_quat_w[(i*body_nb + j)*4 + 1];
-        float root_body_quat_w_y = body_quat_w[(i*body_nb + j)*4 + 2];
-        float root_body_quat_w_z = body_quat_w[(i*body_nb + j)*4 + 3];
+        float root_body_quat_w_w = body_quat_w[i*body_nb*4];
+        float root_body_quat_w_x = body_quat_w[i*body_nb*4 + 1];
+        float root_body_quat_w_y = body_quat_w[i*body_nb*4 + 2];
+        float root_body_quat_w_z = body_quat_w[i*body_nb*4 + 3];
 
         std::vector<float> root_body_pos_w = {root_body_pos_w_x, root_body_pos_w_y, root_body_pos_w_z};
         std::vector<float> root_body_quat_w = {root_body_quat_w_w, root_body_quat_w_x, root_body_quat_w_y, root_body_quat_w_z};

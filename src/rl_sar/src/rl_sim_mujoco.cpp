@@ -174,39 +174,15 @@ void RL_Sim::GetState(RobotState<float> *state)
             state->motor_state.tau_est[i] = mj_data->sensordata[this->params.Get<std::vector<int>>("joint_mapping")[i] + 2 * this->params.Get<int>("num_of_dofs")];
         }
 
-
-        
-
-        if (!state->is_init)
-        {
-            state->last_real_root_pos[0] = mj_data->qpos[0];
-            state->last_real_root_pos[1] = mj_data->qpos[1];
-            state->last_real_root_pos[2] = mj_data->qpos[2];
-        }
-        else
-        {
-            state->last_real_root_pos[0] = state->real_root_pos[0];
-            state->last_real_root_pos[1] = state->real_root_pos[1];
-            state->last_real_root_pos[2] = state->real_root_pos[2];
-        }
         state->real_root_pos[0] = mj_data->qpos[0];
         state->real_root_pos[1] = mj_data->qpos[1];
         state->real_root_pos[2] = mj_data->qpos[2];
 
-        state->real_root_quat[0] = mj_data->qpos[4];
-        state->real_root_quat[1] = mj_data->qpos[5];
-        state->real_root_quat[2] = mj_data->qpos[6];
-        state->real_root_quat[3] = mj_data->qpos[3];
+        state->real_root_quat[0] = mj_data->qpos[3];
+        state->real_root_quat[1] = mj_data->qpos[4];
+        state->real_root_quat[2] = mj_data->qpos[5];
+        state->real_root_quat[3] = mj_data->qpos[6];
 
-        float offset_x = state->real_root_pos[0] - state->last_real_root_pos[0];
-        float offset_y = state->real_root_pos[1] - state->last_real_root_pos[1];
-        float offset_z = state->real_root_pos[2] - state->last_real_root_pos[2];
-
-        state->real_lin_vel[0] = offset_x / this->params.Get<float>("dt");
-        state->real_lin_vel[1] = offset_y / this->params.Get<float>("dt");
-        state->real_lin_vel[2] = offset_z / this->params.Get<float>("dt");
-
-        state->is_init = true;
     }
 }
 
@@ -380,22 +356,72 @@ void RL_Sim::RunModel()
         this->obs.dof_pos = this->robot_state.motor_state.q;
         this->obs.dof_vel = this->robot_state.motor_state.dq;
 
+        this->obs.base_pos = this->robot_state.real_root_pos;
+        Eigen::VectorXd q_pin = Eigen::VectorXd::Zero(model_pin.nq);
+        // dof_pos is in order of IsaacLab
+        q_pin[0] = this->robot_state.real_root_pos[0];
+        q_pin[1] = this->robot_state.real_root_pos[1];
+        q_pin[2] = this->robot_state.real_root_pos[2];
+
+        q_pin[3] = this->robot_state.real_root_quat[1];
+        q_pin[4] = this->robot_state.real_root_quat[2];
+        q_pin[5] = this->robot_state.real_root_quat[3];
+        q_pin[6] = this->robot_state.real_root_quat[0];
+
+        auto joint_mapping = this->params.Get<std::vector<int>>("joint_mapping");
+        for (int i = 0; i < joint_mapping.size(); ++i)
+        {
+            q_pin[7 + joint_mapping[i]] = this->obs.dof_pos[i];
+        }
+        pinocchio::forwardKinematics(model_pin, data_pin, q_pin);
+        pinocchio::updateFramePlacements(model_pin, data_pin);
+        int pelvis_id = model_pin.getFrameId("pelvis");
+
+        Eigen::Vector3d eigen_anchor_pos_w = data_pin.oMf[pelvis_id].translation();
+        Eigen::Matrix3d eigen_anchor_rot_w = data_pin.oMf[pelvis_id].rotation();
+        if (this->obs.is_first_record)
+        {
+            this->obs.last_real_anchor_pos_w[0] = eigen_anchor_pos_w.x();
+            this->obs.last_real_anchor_pos_w[1] = eigen_anchor_pos_w.y();
+            this->obs.last_real_anchor_pos_w[2] = eigen_anchor_pos_w.z();
+            this->obs.is_first_record = false;
+        }
+
+        std::vector<float> real_anchor_pos_w = {0.0, 0.0, 0.0};
+        real_anchor_pos_w[0] = eigen_anchor_pos_w.x();
+        real_anchor_pos_w[1] = eigen_anchor_pos_w.y();
+        real_anchor_pos_w[2] = eigen_anchor_pos_w.z();
+
+        float dt = this->params.Get<float>("dt");
+        std::vector<float> real_anchor_lin_vel_w = {0.0, 0.0, 0.0};
+        real_anchor_lin_vel_w[0] = (real_anchor_pos_w[0] - this->obs.last_real_anchor_pos_w[0])/dt;
+        real_anchor_lin_vel_w[1] = (real_anchor_pos_w[1] - this->obs.last_real_anchor_pos_w[1])/dt;
+        real_anchor_lin_vel_w[2] = (real_anchor_pos_w[2] - this->obs.last_real_anchor_pos_w[2])/dt;
+
+        this->obs.last_real_anchor_pos_w = real_anchor_pos_w;
 
 
+        Eigen::Vector3d eigen_anchor_lin_vel_w;
+        eigen_anchor_lin_vel_w[0] = real_anchor_lin_vel_w[0];
+        eigen_anchor_lin_vel_w[1] = real_anchor_lin_vel_w[1];
+        eigen_anchor_lin_vel_w[2] = real_anchor_lin_vel_w[2];
+        Eigen::Matrix3d mat_world2robot = eigen_anchor_rot_w.transpose();
+        Eigen::Vector3d eigen_anchor_lin_vel_b = mat_world2robot * eigen_anchor_lin_vel_w;
+        this->obs.lin_vel[0] = eigen_anchor_lin_vel_b.x();
+        this->obs.lin_vel[1] = eigen_anchor_lin_vel_b.y();
+        this->obs.lin_vel[2] = eigen_anchor_lin_vel_b.z();
 
 
+        float imu_w = this->robot_state.imu.quaternion[0];
+        float imu_x = this->robot_state.imu.quaternion[1];
+        float imu_y = this->robot_state.imu.quaternion[2];
+        float imu_z = this->robot_state.imu.quaternion[3];
 
-
-        float w = this->robot_state.imu.quaternion[0];
-        float x = this->robot_state.imu.quaternion[1];
-        float y = this->robot_state.imu.quaternion[2];
-        float z = this->robot_state.imu.quaternion[3];
-
-        float t0 = 2.0 * (w * x + y * z);
-        float t1 = 1.0 - 2.0 * (x * x + y * y);
+        float t0 = 2.0 * (imu_w * imu_x + imu_y * imu_z);
+        float t1 = 1.0 - 2.0 * (imu_x * imu_x + imu_y * imu_y);
         float roll = std::atan2(t0, t1);
 
-        float t2 = 2.0 * (w * y - z * x);
+        float t2 = 2.0 * (imu_w * imu_y - imu_z * imu_x);
         if (t2 < -0.1)
         {
             t2 = -1.0;
@@ -412,10 +438,9 @@ void RL_Sim::RunModel()
             return angle;
         };
         
-        float final_roll = wrap_to_pi(roll);
-        float final_pitch = wrap_to_pi(pitch);
+        this->obs.imu_roll = wrap_to_pi(roll);
+        this->obs.imu_pitch = wrap_to_pi(pitch);
         
-        cur_imu = {final_roll, final_pitch};
 
 
 
@@ -502,56 +527,7 @@ void RL_Sim::RunModel()
                 pinocchio::SE3 local_joint_transform = world_M_root.inverse() * world_transform;
 
                 Eigen::Vector3d world_translation = world_transform.translation();
-                Eigen::Quaterniond world_quat(world_transform.rotation());
                 Eigen::Vector3d local_translation = local_joint_transform.translation();
-                Eigen::Quaterniond local_quat(local_joint_transform.rotation());
-
-                pinocchio::Motion v_local = data_pin.v[joint_id];
-                pinocchio::Motion v_joint = data_pin.oMi[joint_id].act(v_local);
-                pinocchio::Motion v_in_root_frame = local_joint_transform.act(v_local);
-
-                Eigen::Vector3d world_linear_vel = v_joint.linear();
-                Eigen::Vector3d world_angular_vel = v_joint.angular();
-                Eigen::Vector3d local_linear_vel = v_in_root_frame.linear();
-                Eigen::Vector3d local_angular_vel = v_in_root_frame.angular();
-
-                if (joint_id == 15)
-                {
-                    root_world_joint_translation[0] = world_translation.x();
-                    root_world_joint_translation[1] = world_translation.y();
-                    root_world_joint_translation[2] = world_translation.z();
-
-                    root_world_joint_quat[0] = world_quat.w();
-                    root_world_joint_quat[1] = world_quat.x();
-                    root_world_joint_quat[2] = world_quat.y();
-                    root_world_joint_quat[3] = world_quat.z();
-
-                    root_world_joint_lin_vel[0] = world_linear_vel.x();
-                    root_world_joint_lin_vel[1] = world_linear_vel.y();
-                    root_world_joint_lin_vel[2] = world_linear_vel.z();
-
-                    root_world_joint_ang_vel[0] = world_angular_vel.x();
-                    root_world_joint_ang_vel[1] = world_angular_vel.y();
-                    root_world_joint_ang_vel[2] = world_angular_vel.z();
-
-
-                    root_local_joint_translation[0] = local_translation.x();
-                    root_local_joint_translation[1] = local_translation.y();
-                    root_local_joint_translation[2] = local_translation.z();
-
-                    root_local_joint_quat[0] = local_quat.w();
-                    root_local_joint_quat[1] = local_quat.x();
-                    root_local_joint_quat[2] = local_quat.y();
-                    root_local_joint_quat[3] = local_quat.z();
-
-                    root_local_joint_lin_vel[0] = local_linear_vel.x();
-                    root_local_joint_lin_vel[1] = local_linear_vel.y();
-                    root_local_joint_lin_vel[2] = local_linear_vel.z();
-
-                    root_local_joint_ang_vel[0] = local_angular_vel.x();
-                    root_local_joint_ang_vel[1] = local_angular_vel.y();
-                    root_local_joint_ang_vel[2] = local_angular_vel.z();
-                }
 
                 mjtNum geom_pos[3];
                 geom_pos[0] = world_translation.x();
@@ -632,6 +608,7 @@ std::vector<float> RL_Sim::Forward()
     {
         actions = this->model->forward({clamped_obs});
     }
+    this->obs.last_raw_actions = actions;
 
     if (!this->params.Get<std::vector<float>>("clip_actions_upper").empty() && !this->params.Get<std::vector<float>>("clip_actions_lower").empty())
     {

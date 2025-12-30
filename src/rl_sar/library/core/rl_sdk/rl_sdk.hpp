@@ -87,12 +87,8 @@ struct RobotState
     std::vector<T> kp;
     std::vector<T> kd;
 
-    bool is_init;
     std::vector<T> real_root_pos;
-    std::vector<T> last_real_root_pos;
     std::vector<T> real_root_quat;
-    std::vector<T> real_lin_vel;
-    std::vector<T> real_ang_vel;
 };
 
 namespace Input
@@ -198,27 +194,15 @@ struct Observations
     std::vector<T> dof_vel;
     std::vector<T> actions;
 
-    std::vector<T> real_root_pos;
-    std::vector<T> last_real_root_pos;
-    std::vector<T> real_root_quat;
-    std::vector<T> real_lin_vel;
-    std::vector<T> real_ang_vel;
+    bool is_first_record;
+    std::vector<T> base_pos;
+    std::vector<T> last_real_anchor_pos_w;
+    T imu_roll;
+    T imu_pitch;
+    std::vector<T> last_raw_actions;
 
     std::vector<T> lafan_motion_command;
     std::vector<T> lafan_joint_pos_history;
-};
-
-template <typename T>
-struct ObservationsLafanMotion
-{
-    std::vector<T> lin_vel;
-    std::vector<T> ang_vel;
-    std::vector<T> gravity_vec;
-    std::vector<T> commands;
-    std::vector<T> base_quat;
-    std::vector<T> dof_pos;
-    std::vector<T> dof_vel;
-    std::vector<T> actions;
 };
 
 class RL
@@ -240,24 +224,8 @@ public:
     pinocchio::Model model_pin;
     pinocchio::Data data_pin;
     bool pinocchio_initialized = false;
-    std::vector<float> root_world_joint_translation;
-    std::vector<float> root_world_joint_quat;
-    std::vector<float> root_world_joint_lin_vel;
-    std::vector<float> root_world_joint_ang_vel;
 
-    std::vector<float> root_local_joint_translation;
-    std::vector<float> root_local_joint_quat;
-    std::vector<float> root_local_joint_lin_vel;
-    std::vector<float> root_local_joint_ang_vel;
 
-    std::vector<float> cur_joint_vel;
-
-    std::vector<float> cur_imu;
-
-    std::vector<float> cur_joint_pos_action;
-    std::vector<float> cur_joint_vel_action;
-    std::vector<float> last_joint_pos_action;
-    std::vector<float> last_joint_vel_action;
 
     float noise_lin_vel_b_min = -0.5;
     float noise_lin_vel_b_max = 0.5;

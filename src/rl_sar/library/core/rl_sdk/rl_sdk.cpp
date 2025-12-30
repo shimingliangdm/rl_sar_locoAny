@@ -203,109 +203,89 @@ std::vector<float> RL::ComputeObservation()
                 {
                     joint_pos_training[i] = joint_pos_sdk[joint_mapping[i]];
                     joint_vel_training[i] = joint_vel_sdk[joint_mapping[i]];
-                    //joint_pos_training[i] = joint_pos_sdk[i];
-                    //joint_vel_training[i] = joint_vel_sdk[i];
                 }
                 motion_cmd.insert(motion_cmd.end(), joint_pos_training.begin(), joint_pos_training.end());
                 motion_cmd.insert(motion_cmd.end(), joint_vel_training.begin(), joint_vel_training.end());
 
-                if (cur_joint_pos_action.size() == 0)
-                {
-                    // which means it's first frame
-                    cur_joint_pos_action.insert(cur_joint_pos_action.end(), joint_pos_training.begin(), joint_pos_training.end());
-                    cur_joint_vel_action.insert(cur_joint_vel_action.end(), joint_vel_training.begin(), joint_vel_training.end());
+                std::vector<float> ref_root_pos_10_30_60_w = video_mimic_motion_loader->GetFutureRootPos();
+                Eigen::Vector3d eigen_ref_future_10(ref_root_pos_10_30_60_w[0], ref_root_pos_10_30_60_w[1], ref_root_pos_10_30_60_w[2]);
+                Eigen::Vector3d eigen_ref_future_30(ref_root_pos_10_30_60_w[3], ref_root_pos_10_30_60_w[4], ref_root_pos_10_30_60_w[5]);
+                Eigen::Vector3d eigen_ref_future_60(ref_root_pos_10_30_60_w[6], ref_root_pos_10_30_60_w[7], ref_root_pos_10_30_60_w[8]);
 
-                    last_joint_pos_action.assign(29, 0.0);
-                    last_joint_vel_action.assign(29, 0.0);
-                }
-                else
-                {
-                    last_joint_pos_action.clear();
-                    last_joint_pos_action.insert(last_joint_pos_action.end(), cur_joint_pos_action.begin(), cur_joint_pos_action.end());
-                    
-                    last_joint_vel_action.clear();
-                    last_joint_vel_action.insert(last_joint_vel_action.end(), cur_joint_vel_action.begin(), cur_joint_vel_action.end());
+                Eigen::Quaterniond eigen_base_quat(this->obs.base_quat[0], this->obs.base_quat[1], 
+                    this->obs.base_quat[2], this->obs.base_quat[3]);
+                Eigen::Vector3d eigen_base_pos = {this->obs.base_pos[0], this->obs.base_pos[1], this->obs.base_pos[2]};
+                Eigen::Vector3d rel_pos_future_10 = eigen_base_quat.conjugate() * (eigen_ref_future_10 - eigen_base_pos);
+                Eigen::Vector3d rel_pos_future_30 = eigen_base_quat.conjugate() * (eigen_ref_future_30 - eigen_base_pos);
+                Eigen::Vector3d rel_pos_future_60 = eigen_base_quat.conjugate() * (eigen_ref_future_60 - eigen_base_pos);
 
-                    cur_joint_pos_action.clear();
-                    cur_joint_vel_action.clear();
-                    cur_joint_pos_action.insert(cur_joint_pos_action.end(), joint_pos_training.begin(), joint_pos_training.end());
-                    cur_joint_vel_action.insert(cur_joint_vel_action.end(), joint_vel_training.begin(), joint_vel_training.end());
-                }
+                std::vector<float> future_ref_10 = 
+                {
+                    rel_pos_future_10.x(), 
+                    rel_pos_future_10.y(), 
+                    rel_pos_future_10.z()
+                };
+                std::vector<float> future_ref_30 = 
+                {
+                    rel_pos_future_30.x(), 
+                    rel_pos_future_30.y(), 
+                    rel_pos_future_30.z()
+                };
+                std::vector<float> future_ref_60 = 
+                {
+                    rel_pos_future_60.x(), 
+                    rel_pos_future_60.y(), 
+                    rel_pos_future_60.z()
+                };
+                motion_cmd.insert(motion_cmd.end(), future_ref_10.begin(), future_ref_10.end());
+                motion_cmd.insert(motion_cmd.end(), future_ref_30.begin(), future_ref_30.end());
+                motion_cmd.insert(motion_cmd.end(), future_ref_60.begin(), future_ref_60.end());
             }
             else
             {
-                motion_cmd.resize(this->params.Get<int>("num_of_dofs") * 2, 0.0f);
+                motion_cmd.resize(this->params.Get<int>("num_of_dofs") * 2 + 9, 0.0f);
             }
-            std::vector<float> ref_root_pos_10_30_60_w = video_mimic_motion_loader->GetFutureRootPos();
-            Eigen::Vector3d p_ref_future_10(ref_root_pos_10_30_60_w[0], ref_root_pos_10_30_60_w[1], ref_root_pos_10_30_60_w[2]);
-            Eigen::Vector3d p_ref_future_30(ref_root_pos_10_30_60_w[3], ref_root_pos_10_30_60_w[4], ref_root_pos_10_30_60_w[5]);
-            Eigen::Vector3d p_ref_future_60(ref_root_pos_10_30_60_w[6], ref_root_pos_10_30_60_w[7], ref_root_pos_10_30_60_w[8]);
-            std::vector<float> real_root_pos_w = root_world_joint_translation;
-            // wxyz
-            std::vector<float> real_root_quat_w = root_world_joint_quat;
-            Eigen::Vector3d p_real(real_root_pos_w[0], real_root_pos_w[1], real_root_pos_w[2]);
-            Eigen::Quaterniond q_real(real_root_quat_w[0], real_root_quat_w[1], real_root_quat_w[2], real_root_quat_w[3]);
-            Eigen::Vector3d pos_in_robot_frame_future_10 = q_real.inverse() * (p_ref_future_10 - p_real);
-            Eigen::Vector3d pos_in_robot_frame_future_30 = q_real.inverse() * (p_ref_future_30 - p_real);
-            Eigen::Vector3d pos_in_robot_frame_future_60 = q_real.inverse() * (p_ref_future_60 - p_real);
-            std::vector<float> future_ref_10 = 
-            {
-                pos_in_robot_frame_future_10.x(), 
-                pos_in_robot_frame_future_10.y(), 
-                pos_in_robot_frame_future_10.z()
-            };
-            std::vector<float> future_ref_30 = 
-            {
-                pos_in_robot_frame_future_30.x(), 
-                pos_in_robot_frame_future_30.y(), 
-                pos_in_robot_frame_future_30.z()
-            };
-            std::vector<float> future_ref_60 = 
-            {
-                pos_in_robot_frame_future_60.x(), 
-                pos_in_robot_frame_future_60.y(), 
-                pos_in_robot_frame_future_60.z()
-            };
-            motion_cmd.insert(motion_cmd.end(), future_ref_10.begin(), future_ref_10.end());
-            motion_cmd.insert(motion_cmd.end(), future_ref_30.begin(), future_ref_30.end());
-            motion_cmd.insert(motion_cmd.end(), future_ref_60.begin(), future_ref_60.end());
+            
 
             obs_list.push_back(motion_cmd);
         }
         else if (observation == "lafan_motion_anchor_pos_b")
         {
             std::vector<float> obs_vec(3, 0.0f);
-            Eigen::VectorXd q_pin = Eigen::VectorXd::Zero(model_pin.nq);
-            // dof_pos is in order of IsaacLab
-            q_pin[0] = this->obs.real_root_pos_x;
-            q_pin[1] = this->obs.real_root_pos_y;
-            q_pin[2] = this->obs.real_root_pos_z;
-
-            q_pin[3] = this->obs.real_root_quat_x;
-            q_pin[4] = this->obs.real_root_quat_y;
-            q_pin[5] = this->obs.real_root_quat_z;
-            q_pin[6] = this->obs.real_root_quat_w;
-
-            auto joint_mapping = this->params.Get<std::vector<int>>("joint_mapping");
-            for (int i = 0; i < joint_mapping.size(); ++i)
+            if (this->video_mimic_motion_loader)
             {
-                q_pin[7 + joint_mapping[i]] = this->obs.dof_pos[7 + joint_mapping[i]];
+                Eigen::VectorXd q_pin = Eigen::VectorXd::Zero(model_pin.nq);
+                // dof_pos is in order of IsaacLab
+                q_pin[0] = this->obs.base_pos[0];
+                q_pin[1] = this->obs.base_pos[1];
+                q_pin[2] = this->obs.base_pos[2];
+
+                q_pin[3] = this->obs.base_quat[1];
+                q_pin[4] = this->obs.base_quat[2];
+                q_pin[5] = this->obs.base_quat[3];
+                q_pin[6] = this->obs.base_quat[0];
+
+                auto joint_mapping = this->params.Get<std::vector<int>>("joint_mapping");
+                for (int i = 0; i < joint_mapping.size(); ++i)
+                {
+                    q_pin[7 + joint_mapping[i]] = this->obs.dof_pos[7 + joint_mapping[i]];
+                }
+                pinocchio::forwardKinematics(model_pin, data_pin, q_pin);
+                pinocchio::updateFramePlacements(model_pin, data_pin);
+                int pelvis_id = model_pin.getFrameId("pelvis");
+
+                Eigen::Vector3d real_root_pos_w = data_pin.oMf[pelvis_id].translation();
+                Eigen::Matrix3d real_root_rot_w = data_pin.oMf[pelvis_id].rotation();
+                Eigen::Quaterniond q_real(real_root_rot_w);
+
+                std::vector<float> ref_root_pos_w = this->video_mimic_motion_loader->GetRootPos();
+                Eigen::Vector3d p_ref_w(ref_root_pos_w[0], ref_root_pos_w[1], ref_root_pos_w[2]);
+
+                Eigen::Vector3d pos_in_robot_frame = q_real.inverse() * (p_ref_w - real_root_pos_w);
+                obs_vec[0] = (float)pos_in_robot_frame.x();
+                obs_vec[1] = (float)pos_in_robot_frame.y();
+                obs_vec[2] = (float)pos_in_robot_frame.z();
             }
-            pinocchio::forwardKinematics(model_pin, data_pin, q_pin);
-            pinocchio::updateFramePlacements(model_pin, data_pin);
-            int pelvis_id = model_pin.getFrameId("pelvis");
-
-            Eigen::Vector3d real_root_pos_w = data_pin.oMf[pelvis_id].translation();
-            Eigen::Matrix3d real_root_rot_w = data_pin.oMf[pelvis_id].rotation();
-            Eigen::Quaterniond q_real(real_root_rot_w);
-
-            std::vector<float> ref_root_pos_w = this->video_mimic_motion_loader->GetRootPos();
-            Eigen::Vector3d p_ref_w(ref_root_pos_w[0], ref_root_pos_w[1], ref_root_pos_w[2]);
-
-            Eigen::Vector3d pos_in_robot_frame = q_real.inverse() * (p_ref_w - real_root_pos_w);
-            obs_vec[0] = (float)pos_in_robot_frame.x();
-            obs_vec[1] = (float)pos_in_robot_frame.y();
-            obs_vec[2] = (float)pos_in_robot_frame.z();
 
             obs_list.push_back(obs_vec);
         }
@@ -314,7 +294,6 @@ std::vector<float> RL::ComputeObservation()
             std::vector<float> anchor_ori(6, 0.0f);
             if (this->video_mimic_motion_loader)
             {
-                
                 auto waist_sdk_indices = this->params.Get<std::vector<int>>("waist_joint_indices");
                 std::vector<float> waist_angles = {
                     this->obs.dof_pos[InverseJointMapping(waist_sdk_indices[0])],
@@ -340,41 +319,17 @@ std::vector<float> RL::ComputeObservation()
 
             std::vector<float> joint_pos_history;
 
-
-            q_pin[0] = this->obs.real_root_pos_x;
-            q_pin[1] = this->obs.real_root_pos_y;
-            q_pin[2] = this->obs.real_root_pos_z;
-
-            q_pin[3] = this->obs.real_root_quat_x;
-            q_pin[4] = this->obs.real_root_quat_y;
-            q_pin[5] = this->obs.real_root_quat_z;
-            q_pin[6] = this->obs.real_root_quat_w;
-
-            auto joint_mapping = this->params.Get<std::vector<int>>("joint_mapping");
-            for (int i = 0; i < joint_mapping.size(); ++i)
-            {
-                q_pin[7 + joint_mapping[i]] = this->obs.dof_pos[7 + joint_mapping[i]];
-            }
-            pinocchio::forwardKinematics(model_pin, data_pin, q_pin);
-            pinocchio::updateFramePlacements(model_pin, data_pin);
-            int pelvis_id = model_pin.getFrameId("pelvis");
-
-
-
-
-            std::vector<float> noise_lin_vel_b = ApplyNoise(root_local_joint_lin_vel, noise_lin_vel_b_min, noise_lin_vel_b_max);
+            std::vector<float> noise_lin_vel_b = ApplyNoise(this->obs.lin_vel * this->params.Get<float>("lin_vel_scale"), 
+                noise_lin_vel_b_min, noise_lin_vel_b_max);
             joint_pos_history.insert(joint_pos_history.end(), noise_lin_vel_b.begin(), noise_lin_vel_b.end());
 
-            std::vector<float> noise_ang_vel_b = ApplyNoise(root_local_joint_ang_vel, noise_ang_vel_b_min, noise_ang_vel_b_max);
+            std::vector<float> noise_ang_vel_b = ApplyNoise(this->obs.ang_vel * this->params.Get<float>("ang_vel_scale"), 
+                noise_ang_vel_b_min, noise_ang_vel_b_max);
             joint_pos_history.insert(joint_pos_history.end(), noise_ang_vel_b.begin(), noise_ang_vel_b.end());
 
             std::vector<float> joint_pos_rels;
-
-
             std::vector<float> dof_pos_rel = (this->obs.dof_pos - this->params.Get<std::vector<float>>("default_dof_pos")) * 
                 this->params.Get<float>("dof_pos_scale");
-
-
             for (int i=0; i<29; i++)
             {
                 joint_pos_rels.push_back(dof_pos_rel[i]);
@@ -382,26 +337,21 @@ std::vector<float> RL::ComputeObservation()
             std::vector<float> noise_joint_pos_rel = ApplyNoise(joint_pos_rels, noise_joint_pos_min, noise_joint_pos_max);
             joint_pos_history.insert(joint_pos_history.end(), noise_joint_pos_rel.begin(), noise_joint_pos_rel.end());
 
-            std::vector<float> joint_vel_rels;
-            for (int i=0; i<29; i++)
-            {
-                // joint vel is assigned becuase default joint vel is 0
-                float joint_vel_rel = cur_joint_vel[i];
-                joint_vel_rels.push_back(joint_vel_rel);
-            }
-            std::vector<float> noise_joint_vel_rel = ApplyNoise(joint_vel_rels, noise_joint_vel_min, noise_joint_vel_max);
+            std::vector<float> scaled_dof_vel = this->obs.dof_vel * this->params.Get<float>("dof_vel_scale");
+            // joint vel is assigned becuase default joint vel is 0
+            std::vector<float> noise_joint_vel_rel = ApplyNoise(scaled_dof_vel, noise_joint_vel_min, noise_joint_vel_max);
             joint_pos_history.insert(joint_pos_history.end(), noise_joint_vel_rel.begin(), noise_joint_vel_rel.end());
 
-            std::vector<float> imu = cur_imu;
+            std::vector<float> imu = {this->obs.imu_roll, this->obs.imu_pitch};
             joint_pos_history.insert(joint_pos_history.end(), imu.begin(), imu.end());
 
-            std::vector<float> last_action = last_joint_pos_action;
+            std::vector<float> last_action = this->obs.last_raw_actions;
             joint_pos_history.insert(joint_pos_history.end(), last_action.begin(), last_action.end());
 
             std::vector<float> priv_explicit(9, 0.0);
-            priv_explicit[0] = root_local_joint_lin_vel[0] * 2.0;
-            priv_explicit[1] = root_local_joint_lin_vel[1] * 2.0;
-            priv_explicit[2] = root_local_joint_lin_vel[2] * 2.0;
+            priv_explicit[0] = this->obs.lin_vel[0] * 2.0;
+            priv_explicit[1] = this->obs.lin_vel[1] * 2.0;
+            priv_explicit[2] = this->obs.lin_vel[2] * 2.0;
             joint_pos_history.insert(joint_pos_history.end(), priv_explicit.begin(), priv_explicit.end());
 
             /* mass information is fetched from mujoco model
@@ -450,11 +400,13 @@ std::vector<float> RL::ComputeObservation()
             // actually it's the position of root joint
             std::vector<float> mass_params(4, 0.0);
             mass_params[0] = 3.813;
-            mass_params[1] = root_local_joint_translation[0];
-            mass_params[2] = root_local_joint_translation[1];
-            mass_params[3] = root_local_joint_translation[2];
+            // center of mass in robot frame, we can get according to print result from locoAny
+            mass_params[1] = 0.0;
+            mass_params[2] = 0.0;
+            mass_params[3] = -0.0760;
             joint_pos_history.insert(joint_pos_history.end(), mass_params.begin(), mass_params.end());
 
+            // friction coe is not the same in different environments
             std::vector<float> friction_coeffs = {0.4369};
             joint_pos_history.insert(joint_pos_history.end(), friction_coeffs.begin(), friction_coeffs.end());
 
@@ -495,11 +447,10 @@ void RL::InitObservations()
     this->obs.actions.clear();
     this->obs.actions.resize(this->params.Get<int>("num_of_dofs"), 0.0f);
 
-    this->obs.real_root_pos.resize(3);
-    this->obs.last_real_root_pos.resize(3);
-    this->obs.real_root_quat.resize(4);
-    this->obs.real_lin_vel.resize(3);
-    this->obs.real_ang_vel.resize(3);
+    this->obs.is_first_record = true;
+    this->obs.base_pos.resize(3);
+    this->obs.last_real_anchor_pos_w.resize(3);
+    this->obs.last_raw_actions.resize(this->params.Get<int>("num_of_dofs"), 0.0f);
 
     // for lafan motion mimic
     this->obs.lafan_motion_command.assign(67, 0.0);
@@ -533,10 +484,7 @@ void RL::InitJointNum(size_t num_joints)
     this->robot_command.motor_command.resize(num_joints);
 
     this->robot_state.real_root_pos.resize(3);
-    this->robot_state.last_real_root_pos.resize(3);
     this->robot_state.real_root_quat.resize(4);
-    this->robot_state.real_lin_vel.resize(3);
-    this->robot_state.real_ang_vel.resize(3);
 }
 
 void RL::InitRL(std::string robot_config_path)
@@ -555,15 +503,6 @@ void RL::InitRL(std::string robot_config_path)
         pinocchio::urdf::buildModel(urdf_path, pinocchio::JointModelFreeFlyer(), model_pin);
         data_pin = pinocchio::Data(model_pin);
 
-        root_world_joint_translation = {0.0, 0.0, 0.0};
-        root_world_joint_quat = {0.0, 0.0, 0.0, 0.0};
-        root_world_joint_lin_vel = {0.0, 0.0, 0.0};
-        root_world_joint_ang_vel = {0.0, 0.0, 0.0};
-
-        root_local_joint_translation = {0.0, 0.0, 0.0};
-        root_local_joint_quat = {0.0, 0.0, 0.0, 0.0};
-        root_local_joint_lin_vel = {0.0, 0.0, 0.0};
-        root_local_joint_ang_vel = {0.0, 0.0, 0.0};
 
         /*
         joint_pos={
@@ -611,8 +550,6 @@ void RL::InitRL(std::string robot_config_path)
             "right_wrist_yaw_joint"
         ]
         */
-
-        cur_joint_vel.assign(29, 0.0);
 
         pinocchio_initialized = true;
     }
