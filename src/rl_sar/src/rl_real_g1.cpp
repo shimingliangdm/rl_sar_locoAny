@@ -244,6 +244,10 @@ void RL_Real::RunModel()
     }
 }
 
+void RL_Real::GetCurrentTestStates(std::vector<float>& root_pos, std::vector<float>& root_quat, std::vector<float>& out_joint_pos)
+{
+}
+
 std::vector<float> RL_Real::Forward()
 {
     std::unique_lock<std::mutex> lock(this->model_mutex, std::try_to_lock);

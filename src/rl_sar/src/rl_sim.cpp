@@ -561,6 +561,10 @@ void RL_Sim::Plot()
     plt::pause(0.01);
 }
 
+void RL_Sim::GetCurrentTestStates(std::vector<float>& root_pos, std::vector<float>& root_quat, std::vector<float>& out_joint_pos)
+{
+}
+
 #if defined(USE_ROS1)
 void signalHandler(int signum)
 {

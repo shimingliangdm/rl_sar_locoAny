@@ -158,6 +158,10 @@ void RL_Real::GetState(RobotState<float> *state)
     }
 }
 
+void RL_Real::GetCurrentTestStates(std::vector<float>& root_pos, std::vector<float>& root_quat, std::vector<float>& out_joint_pos)
+{
+}
+
 void RL_Real::SetCommand(const RobotCommand<float> *command)
 {
     for (int i = 0; i < this->params.Get<int>("num_of_dofs"); ++i)

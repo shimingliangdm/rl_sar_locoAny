@@ -105,6 +105,10 @@ RL_Real::~RL_Real()
     std::cout << LOGGER::INFO << "RL_Real exit" << std::endl;
 }
 
+void RL_Real::GetCurrentTestStates(std::vector<float>& root_pos, std::vector<float>& root_quat, std::vector<float>& out_joint_pos)
+{
+}
+
 void RL_Real::GetState(RobotState<float> *state)
 {
     if (this->unitree_joy.components.A) this->control.SetGamepad(Input::Gamepad::A);

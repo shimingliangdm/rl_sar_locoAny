@@ -200,6 +200,34 @@ void RL_Sim::SetCommand(const RobotCommand<float> *command)
     }
 }
 
+void RL_Sim::GetCurrentTestStates(std::vector<float>& root_pos, std::vector<float>& root_quat, std::vector<float>& out_joint_pos)
+{
+    std::vector<float> current_root_pos = 
+    {
+        (float)mj_data->qpos[0],
+        (float)mj_data->qpos[1],
+        (float)mj_data->qpos[2]
+    };
+
+    std::vector<float> current_root_quat = 
+    {
+        (float)mj_data->qpos[3],
+        (float)mj_data->qpos[4],
+        (float)mj_data->qpos[5],
+        (float)mj_data->qpos[6]
+    };
+
+    std::vector<float> joint_pos;
+    for (int i = 0; i < 29; ++i)
+    {
+        joint_pos.push_back((float)mj_data->qpos[7 + i]);
+    }
+
+    root_pos = current_root_pos;
+    root_quat = current_root_quat;
+    out_joint_pos = joint_pos;
+}
+
 void RL_Sim::RobotControl()
 {
     // Lock the sim mutex once for the entire control cycle to prevent race conditions

@@ -11,14 +11,26 @@
 #include "vector_math.hpp"
 #include "../logger/logger.hpp"
 
+#include <pinocchio/fwd.hpp>
+#include <pinocchio/parsers/urdf.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/joint-configuration.hpp>
+
 class VideoMimicMotionLoader
 {
 public:
-    VideoMimicMotionLoader(const std::string& motion_file, float fps);
-
-    void Init(const std::string& motion_file);
+    VideoMimicMotionLoader(const std::string& motion_file, float fps, pinocchio::Model model_pin,
+        const std::vector<float>& root_pos,
+        const std::vector<float>& root_quat,
+        const std::vector<float>& joint_pos);
 
     void LoadVideoMimicCSV(const std::string& filename);
+
+    void GenerateStaticStanding(pinocchio::Model model_pin, 
+        const std::vector<float>& root_pos,
+        const std::vector<float>& root_quat,
+        const std::vector<float>& joint_pos);
 
     void Update(float time);
 

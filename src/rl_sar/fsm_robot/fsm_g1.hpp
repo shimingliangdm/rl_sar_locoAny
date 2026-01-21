@@ -9,6 +9,12 @@
 #include "fsm.hpp"
 #include "rl_sdk.hpp"
 
+#include <pinocchio/fwd.hpp>
+#include <pinocchio/parsers/urdf.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/joint-configuration.hpp>
+
 namespace g1_fsm
 {
 
@@ -394,7 +400,12 @@ RLFSMStateRLWholeBodyTrackingLafan(RL *rl) : RLFSMState(*rl, "RLFSMStateRLWholeB
                 robot_config_path + "/" + 
                 rl.params.Get<std::string>("motion_file");
             float fps = 1.0f / (rl.params.Get<float>("dt") * rl.params.Get<int>("decimation"));
-            rl.video_mimic_motion_loader = std::make_unique<VideoMimicMotionLoader>(motion_file_path, fps);
+            std::vector<float> cur_root_pos;
+            std::vector<float> cur_root_quat;
+            std::vector<float> cur_joint_pos;
+            rl.GetCurrentTestStates(cur_root_pos, cur_root_quat, cur_joint_pos);
+            rl.video_mimic_motion_loader = std::make_unique<VideoMimicMotionLoader>(motion_file_path, fps, rl.model_pin, cur_root_pos,
+                cur_root_quat, cur_joint_pos);
             
 
             rl.motion_length = rl.video_mimic_motion_loader->GetDuration();

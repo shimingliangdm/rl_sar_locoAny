@@ -2,7 +2,11 @@
 #include "cnpy.h"
 #include "math_struct.hpp"
 
-VideoMimicMotionLoader::VideoMimicMotionLoader(const std::string& motion_file, float fps)
+VideoMimicMotionLoader::VideoMimicMotionLoader(const std::string& motion_file, float fps, 
+    pinocchio::Model model_pin,
+    const std::vector<float>& root_pos,
+    const std::vector<float>& root_quat,
+    const std::vector<float>& joint_pos)
     : dt_(1.0f / fps), index_0_(0), index_1_(0), blend_(0.0f), index_10_future(0), index_30_future(0), index_60_future(0)
 {
     dt_ = 1.0f / fps;
@@ -13,26 +17,59 @@ VideoMimicMotionLoader::VideoMimicMotionLoader(const std::string& motion_file, f
     index_30_future = 0;
     index_60_future = 0;
     
-    LoadVideoMimicCSV(motion_file);
+    //LoadVideoMimicCSV(motion_file);
+    GenerateStaticStanding(model_pin, root_pos, root_quat, joint_pos);
 
     num_frames_ = root_positions_.size();
     duration_ = num_frames_ * dt_;
 }
 
-void VideoMimicMotionLoader::Init(const std::string& motion_file)
+
+void VideoMimicMotionLoader::GenerateStaticStanding(pinocchio::Model model_pin,
+    const std::vector<float>& root_pos,
+    const std::vector<float>& root_quat,
+    const std::vector<float>& joint_pos)
 {
-    dt_ = 1.0f / fps;
-    index_0_ = 0;
-    index_1_ = 0;
-    blend_ = 0.0;
-    index_10_future = 0;
-    index_30_future = 0;
-    index_60_future = 0;
+    root_positions_.clear();
+    root_quaternions_.clear();
+    joint_positions_.clear();
+    joint_velocities_.clear();
 
-    LoadVideoMimicCSV(motion_file);
+    int duration_sec = 10;
+    int fps = 50;
+    int total_frames = duration_sec * fps;
 
-    num_frames_ = root_positions_.size();
-    duration_ = num_frames_ * dt_;
+    int num_joints = model_pin.nq - 7;
+    std::vector<float> current_root_pos = 
+    {
+        (float)root_pos[0],
+        (float)root_pos[1],
+        (float)root_pos[2]
+    };
+
+    std::vector<float> current_root_quat = 
+    {
+        (float)root_quat[0],
+        (float)root_quat[1],
+        (float)root_quat[2],
+        (float)root_quat[3]
+    };
+
+    std::vector<float> current_joint_pos;
+    current_joint_pos.reserve(num_joints);
+    for (int i = 0; i < num_joints; ++i)
+    {
+        current_joint_pos.push_back((float)joint_pos[i]);
+    }
+
+    std::vector<float> zero_vel(num_joints, 0.0f);
+    for (int i = 0; i < total_frames; ++i)
+    {
+        root_positions_.push_back(current_root_pos);
+        root_quaternions_.push_back(current_root_quat);
+        joint_positions_.push_back(current_joint_pos);
+        joint_velocities_.push_back(zero_vel);
+    }
 }
 
 void VideoMimicMotionLoader::LoadVideoMimicCSV(const std::string& filename)
