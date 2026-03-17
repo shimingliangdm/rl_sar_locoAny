@@ -423,33 +423,6 @@ link_directories(BEFORE /home/unitree/miniconda3/envs/rlsar/lib)
 find_package(Torch REQUIRED)
 add_definitions(-DUSE_TORCH)
 
-find_package(pinocchio REQUIRED)
-
-find_library(PINOCCHIO_PARSERS_LIB
-    NAMES pinocchio_parsers
-    HINTS ${pinocchio_INCLUDE_DIRS}/../lib
-    PATHS /home/unitree/miniconda3/envs/rlsar/lib
-    NO_DEFAULT_PATH
-)
-
-if(NOT PINOCCHIO_PARSERS_LIB)
-    find_library(PINOCCHIO_PARSERS_LIB NAMES pinocchio_parsers)
-endif()
-
-message(STATUS "Pinocchio Parsers Lib Found: ${PINOCCHIO_PARSERS_LIB}")
-
-if(NOT pinocchio_LIBRARIES AND PINOCCHIO_LIBRARIES)
-    set(pinocchio_LIBRARIES ${PINOCCHIO_LIBRARIES})
-endif()
-
-include_directories(
-    /usr/include/eigen3
-    ${pinocchio_INCLUDE_DIRS}
-)
-
-message(STATUS "Found Pinocchio version: ${pinocchio_VERSION}")
-message(STATUS "Pinocchio include dirs: ${pinocchio_INCLUDE_DIRS}")
-message(STATUS "Pinocchio libraries: ${pinocchio_LIBRARIES}")
 
 
 
@@ -465,8 +438,6 @@ target_link_libraries(rl_sdk PUBLIC
     Python3::Module
     TBB::tbb
     cnpy
-    ${pinocchio_LIBRARIES}
-    ${PINOCCHIO_PARSERS_LIB}
     ${TORCH_LIBRARIES}
 )
 find_package(Python3 COMPONENTS NumPy)
