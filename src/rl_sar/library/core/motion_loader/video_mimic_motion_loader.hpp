@@ -18,8 +18,6 @@ public:
 
     void Init();
 
-    void LoadVideoMimicCSV();
-
     void Update(float time);
 
     std::vector<float> GetJointPos() const;

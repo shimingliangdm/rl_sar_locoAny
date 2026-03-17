@@ -1,11 +1,9 @@
 #include "video_mimic_motion_loader.hpp"
-#include "cnpy.h"
 #include "math_struct.hpp"
 
 VideoMimicMotionLoader::VideoMimicMotionLoader()
     : dt_(1.0f / fps), index_0_(0), index_1_(0), blend_(0.0f), index_10_future(0), index_30_future(0), index_60_future(0)
 {
-    LoadVideoMimicCSV();
 
     num_frames_ = root_positions_.size();
     duration_ = num_frames_ * dt_;
@@ -21,141 +19,11 @@ void VideoMimicMotionLoader::Init()
     index_30_future = 0;
     index_60_future = 0;
 
-    LoadVideoMimicCSV();
 
     num_frames_ = root_positions_.size();
     duration_ = num_frames_ * dt_;
 }
 
-void VideoMimicMotionLoader::LoadVideoMimicCSV()
-{
-    
-    cnpy::npz_t npz_data = cnpy::npz_load("/home/dm/locoAny/artifacts/dance1_subject1:v0/motion.npz");
-    cnpy::NpyArray joint_poses_array = npz_data["joint_pos"];
-    cnpy::NpyArray joint_vels_array = npz_data["joint_vel"];
-    cnpy::NpyArray body_pos_w_array = npz_data["body_pos_w"];
-    cnpy::NpyArray body_quat_w_array = npz_data["body_quat_w"];
-    cnpy::NpyArray body_lin_vel_w_array = npz_data["body_lin_vel_w"];
-    cnpy::NpyArray body_ang_vel_w_array = npz_data["body_ang_vel_w"];
-
-    float* joint_poses = joint_poses_array.data<float>();
-    float* joint_vels = joint_vels_array.data<float>();
-
-    /* joint names
-    [
-        "left_hip_pitch_joint",
-        "left_hip_roll_joint",
-        "left_hip_yaw_joint",
-        "left_knee_joint",
-        "left_ankle_pitch_joint", 
-        "left_ankle_roll_joint",
-        "right_hip_pitch_joint",
-        "right_hip_roll_joint",
-        "right_hip_yaw_joint",
-        "right_knee_joint",
-        "right_ankle_pitch_joint",
-        "right_ankle_roll_joint",
-        "waist_yaw_joint",
-        "waist_roll_joint",
-        "waist_pitch_joint",
-        "left_shoulder_pitch_joint",
-        "left_shoulder_roll_joint",
-        "left_shoulder_yaw_joint",
-        "left_elbow_joint",
-        "left_wrist_roll_joint",
-        "left_wrist_pitch_joint",
-        "left_wrist_yaw_joint",
-        "right_shoulder_pitch_joint",
-        "right_shoulder_roll_joint",
-        "right_shoulder_yaw_joint",
-        "right_elbow_joint",
-        "right_wrist_roll_joint",
-        "right_wrist_pitch_joint",
-        "right_wrist_yaw_joint"
-    ]
-    */
-
-    float* body_pos_w = body_pos_w_array.data<float>();
-    float* body_quat_w = body_quat_w_array.data<float>();
-
-    size_t frame_nb = joint_poses_array.shape[0];
-    size_t joint_nb = joint_poses_array.shape[1];
-
-    size_t body_nb = body_pos_w_array.shape[1];
-
-    // target body names
-    // ['pelvis', 'left_hip_roll_link', 'left_knee_link', 'left_ankle_roll_link', 'right_hip_roll_link', 
-    // 'right_knee_link', 'right_ankle_roll_link', 'torso_link', 'left_shoulder_roll_link', 'left_elbow_link', 
-    // 'left_wrist_yaw_link', 'right_shoulder_roll_link', 'right_elbow_link', 'right_wrist_yaw_link']
-
-    // corresponding body idx
-    // [ 0,  4, 10, 18,  5, 11, 19,  9, 16, 22, 28, 17, 23, 29]
-
-    // anchor body name: torso_link
-
-    // anchor body idx: 9
-
-    std::vector<int> target_body_idx = {0,  4, 10, 18,  5, 11, 19,  9, 16, 22, 28, 17, 23, 29};
-    int anchor_body_idx = 9;
-    for (int i=0; i<frame_nb; i++)
-    {
-        std::vector<float> frame_joint_pos;
-        std::vector<float> frame_joint_vel;
-        for (int j=0; j<joint_nb; j++)
-        {
-            float joint_pos = joint_poses[i*joint_nb + j];
-            float joint_vel = joint_vels[i*joint_nb + j];
-            frame_joint_pos.push_back(joint_pos);
-            frame_joint_vel.push_back(joint_vel);
-        }
-
-        std::vector<math_struct::Position<float>> frame_body_positions;
-        std::vector<math_struct::Quat<float>> frame_body_quats;
-        for (int j=0; j<body_nb; j++)
-        {
-            auto found = find(target_body_idx.begin(), target_body_idx.end(), j);
-            if (found != target_body_idx.end())
-            {
-                // which means this is one of the target body
-                float x = body_pos_w[(i*body_nb + j)*3];
-                float y = body_pos_w[(i*body_nb + j)*3 + 1];
-                float z = body_pos_w[(i*body_nb + j)*3 + 2];
-
-                // quat should be in sequence of wxyz
-                float quat_w = body_quat_w[(i*body_nb + j)*4];
-                float quat_x = body_quat_w[(i*body_nb + j)*4 + 1];
-                float quat_y = body_quat_w[(i*body_nb + j)*4 + 2];
-                float quat_z = body_quat_w[(i*body_nb + j)*4 + 3];
-
-                math_struct::Position<float> position(x, y, z);
-                math_struct::Quat<float> quat(quat_x, quat_y, quat_z, quat_w);
-                frame_body_positions.push_back(position);
-                frame_body_quats.push_back(quat);
-
-                if (j == anchor_body_idx)
-                {                    
-                    // which means this is anchor body
-                    std::vector<float> anchor_pos;
-                    anchor_pos.push_back(x);
-                    anchor_pos.push_back(y);
-                    anchor_pos.push_back(z);
-
-                    std::vector<float> anchor_quat;
-                    anchor_quat.push_back(quat_w);
-                    anchor_quat.push_back(quat_x);
-                    anchor_quat.push_back(quat_y);
-                    anchor_quat.push_back(quat_z);
-                    
-                    root_positions_.push_back(anchor_pos);
-                    root_quaternions_.push_back(anchor_quat);
-                }
-            }
-            
-        }
-        joint_positions_.push_back(frame_joint_pos);
-        joint_velocities_.push_back(frame_joint_vel);
-    }
-}
 
 void VideoMimicMotionLoader::Update(float time)
 {
