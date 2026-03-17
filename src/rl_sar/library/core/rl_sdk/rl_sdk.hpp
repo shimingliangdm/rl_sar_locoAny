@@ -26,11 +26,6 @@
 #include "motion_loader.hpp"
 #include "video_mimic_motion_loader.hpp"
 
-#include <pinocchio/fwd.hpp>
-#include <pinocchio/parsers/urdf.hpp>
-#include <pinocchio/algorithm/kinematics.hpp>
-#include <pinocchio/algorithm/frames.hpp>
-#include <pinocchio/algorithm/joint-configuration.hpp>
 
 template <typename T>
 struct RobotCommand
@@ -225,9 +220,6 @@ public:
     tbb::concurrent_queue<std::vector<float>> output_dof_vel_queue;
     tbb::concurrent_queue<std::vector<float>> output_dof_tau_queue;
 
-    pinocchio::Model model_pin;
-    pinocchio::Data data_pin;
-    bool pinocchio_initialized = false;
     std::vector<float> root_world_joint_translation;
     std::vector<float> root_world_joint_quat;
     std::vector<float> root_world_joint_lin_vel;
