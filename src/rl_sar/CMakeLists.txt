@@ -224,6 +224,16 @@ endif()
 
 find_package(TBB REQUIRED)
 find_package(Threads REQUIRED)
+
+# ====== 强制锁定 Conda 环境 ======
+set(CMAKE_PREFIX_PATH "$ENV{CONDA_PREFIX};${CMAKE_PREFIX_PATH}")
+set(Python3_ROOT_DIR "$ENV{CONDA_PREFIX}")
+set(Python3_EXECUTABLE "$ENV{CONDA_PREFIX}/bin/python")
+set(Python3_INCLUDE_DIR "$ENV{CONDA_PREFIX}/include/python3.8")
+set(Python3_LIBRARY "$ENV{CONDA_PREFIX}/lib/libpython3.8.so")
+set(Python3_FIND_STRATEGY LOCATION) # 关键：强制定位策略
+# =================================
+
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 
 
