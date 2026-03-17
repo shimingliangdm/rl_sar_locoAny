@@ -285,34 +285,6 @@ endif()
 
 
 
-# cnpy library
-CMAKE_MINIMUM_REQUIRED(VERSION 3.5 FATAL_ERROR)
-if(COMMAND cmake_policy)
-	cmake_policy(SET CMP0003 NEW)
-endif(COMMAND cmake_policy)
-
-project(CNPY)
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-
-option(ENABLE_STATIC "Build static (.a) library" ON)
-
-find_package(ZLIB REQUIRED)
-
-include_directories(${ZLIB_INCLUDE_DIRS})
-
-add_library(cnpy SHARED "library/thirdparty/cnpy/cnpy.cpp" "library/thirdparty/cnpy/cnpy.h")
-target_include_directories(cnpy PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/library/thirdparty/cnpy)
-target_link_libraries(cnpy ${ZLIB_LIBRARIES})
-install(TARGETS "cnpy" LIBRARY DESTINATION lib PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
-
-
-add_library(cnpy-static STATIC "library/thirdparty/cnpy/cnpy.cpp" "library/thirdparty/cnpy/cnpy.h")
-set_target_properties(cnpy-static PROPERTIES OUTPUT_NAME "cnpy")
-install(TARGETS "cnpy-static" ARCHIVE DESTINATION lib)
-
-
-install(FILES "library/thirdparty/cnpy/cnpy.h" DESTINATION include)
 
 
 
@@ -429,7 +401,6 @@ add_definitions(-DUSE_TORCH)
 
 # library for rl sdk
 add_library(rl_sdk library/core/rl_sdk/rl_sdk.cpp)
-target_link_libraries(video_mimic_motion_loader cnpy)
 target_link_libraries(rl_sdk PUBLIC
     motion_loader
     video_mimic_motion_loader 
@@ -437,7 +408,6 @@ target_link_libraries(rl_sdk PUBLIC
     Python3::Python
     Python3::Module
     TBB::tbb
-    cnpy
     ${TORCH_LIBRARIES}
 )
 find_package(Python3 COMPONENTS NumPy)
@@ -572,7 +542,6 @@ if(SYSTEM_TYPE STREQUAL "Linux")
         rl_sdk
         observation_buffer
             ${YAML_CPP_LIBRARIES}
-        cnpy
     )
     # Add unitree_sdk2 library path to RPATH
     set_target_properties(rl_real_g1 PROPERTIES
@@ -736,7 +705,6 @@ if(USE_MUJOCO)
         Threads::Threads mujoco_prebuilt glfw
         ${ZLIB_LIBRARIES}
         ${TORCH_LIBRARIES}
-        cnpy
     )
 
     # macOS specific frameworks and libraries
